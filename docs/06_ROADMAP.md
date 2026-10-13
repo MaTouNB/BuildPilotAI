@@ -29,17 +29,19 @@
 **依赖**：M00。**学习**：`with`、迭代器、`csv.DictReader`、`zipfile`、`Decimal`、异常、函数与模块、Pydantic、pytest fixtures、数据溯源。
 
 **实施任务**
-- [ ] 读取原始 ZIP，验证输入 SHA、枚举 25 个 CSV 和字段。
-- [ ] 制作 `profile.json`：每类总行数、非空价、空价、字段空值和重复嫌疑；报告中的基线同本交接包核对。
-- [ ] 先实现 CPU、主板、GPU、内存四类 normalizer，再推广到八类，保留未知类原始行。
-- [ ] 标准化类别、价格、名字、数字/单位、内存 `speed/modules`，并保存 `raw` 信息。
-- [ ] 不完整字段进入 WARN；格式不合法进入 quarantine；提供 `--dry-run`。
-- [ ] 写出 `cleaned_*.jsonl`、`quarantine.jsonl` 和 `quality_report.json`；统一 UTC 时间标识。
-- [ ] 为价格、空值、错误格式、同名不同 SKU、重复源行写单测。
+- [x] 读取原始 ZIP，验证输入 SHA、枚举 25 个 CSV 和字段。
+- [x] 制作 `profile.json`：每类总行数、非空价、空价、字段空值和重复嫌疑；报告中的基线同本交接包核对。
+- [x] 先实现 CPU、主板、GPU、内存四类 normalizer，再推广到八类，保留未知类原始行。
+- [x] 标准化类别、价格、名字、数字/单位、内存 `speed/modules`，并保存 `raw` 信息。
+- [x] 不完整字段进入 WARN；格式不合法进入 quarantine；提供 `--dry-run`。
+- [x] 写出 `cleaned_*.jsonl`、`quarantine.jsonl` 和 `quality_report.json`；统一 UTC 时间标识。
+- [x] 为价格、空值、错误格式、同名不同 SKU、重复源行写单测。
 
 **练习**：自己修改 `normalize_memory()`，增加 3 个异常输入；解释为何不能简单 `dropna()` 和 `.drop_duplicates(name)`。
 
 **验收门槛**：25 类 66,778 源行可数；16,222 非空价；原始文件不变；输出重复运行确定；失败有行号与原因；所有测试通过。
+
+实际验收：见 [M01 验收记录](verification/M01.md)。M01 输出是源候选，不代表已可直接报价的规范 SKU。
 
 ## M02｜数据库模型与 ETL 导入（Bronze/Silver/Gold）
 **依赖**：M01。**学习**：数据库约束、事务、ORM、迁移、UPSERT、索引、幂等、Decimal/NUMERIC 与 JSONB。
