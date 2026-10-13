@@ -97,3 +97,15 @@ python -m app.etl.import_db --input data/processed/ --apply
 
 ## 10. 严格报价约束
 所有返回报价的数据结构必须包含：`value`, `currency='USD'`, `price_kind='historical_reference'`, `dataset_updated_at='2025-07-23'`, `source_dataset`, `is_quotable`。UI 与 Agent 解释中始终显示同等信息。预算功能第一版只接受 USD，人民币预算提示暂不支持或需要用户明确输入人工设定的换算假设，绝不静默转换。
+
+## M01 实现口径
+
+profile 和 clean CLI 已实现；import_db 属于 M02，尚未实现。命令路径相对于 backend 工作目录时，输入使用 ../data/raw/csv.zip；实际示例见 README。
+
+源记录以输入 hash + 文件路径 + 逻辑记录序号生成 key；同时保存物理起止行号，支持 CSV 多行字段追踪。每条记录独立保留，candidate_key 仅作相同规格候选诊断，不做合并。价格冲突覆盖所有 25 类候选，未选最终价。M01 没有已审核的规范 SKU，因此所有 is_quotable=false；VALID_REFERENCE_PRICE 只说明金额合法，不代表允许严格预算报价。
+
+空价不隔离；非法名称/价格、列结构、非法数值格式或内存二元字段进入 quarantine。普通数字的零/负值等不合理范围优先 WARN，规范字段置 null，源字段保留；金额和内存二元字段的非正值按 ERROR 处理。原始数字保留在 source_fields；单位不明的时钟及尺寸不赋予推测单位。
+
+canonical JSON 使用稳定排序、固定输入版本及 pipeline_version；实际 UTC 完成时间和耗时仅写运行日志，不混入可复现导出内容。dry-run 使用独立目录，只生成报告。写出前先暂存文件，再替换已识别的工具目录；遇到外来文件、raw 路径或不同输入的输出目录直接拒绝。M01 不支持同目录并发导出。
+
+全量验收入口为 scripts/check_m01.py；CI 只使用自行编写的合成 ZIP fixtures。详见 verification/M01.md。

@@ -1,4 +1,4 @@
-name: M00 quality gates
+name: BuildPilot quality gates
 on: [push, pull_request]
 permissions:
   contents: read

@@ -1,17 +1,17 @@
-# BuildPilot AI — 完整项目实施手册（M00 修订版）
+# BuildPilot AI — 完整项目实施手册（M01 修订版）
 
-2026-10-13：M00 工程基座与远端 CI 已通过；其余阶段为设计稿。业务规则见 docs/11_PLAN_REVISION.md，验收见 docs/verification/M00.md。
+2026-10-13：M00 与 M01 已实现；其余阶段为设计稿。业务规则见 docs/11_PLAN_REVISION.md，验收见 docs/verification/。
 
 
 ---
 
 <!-- 源文件：README.md -->
 
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M00 工程基座）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M01 文件 ETL）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00 工程基座已实现；验收结果见 docs/verification/M00.md。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00 工程基座与 M01 文件 ETL 已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00：前后端环境、健康检查、PostgreSQL、自动测试与基础 CI 配置。** M01 及后续业务尚未实现；按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座和 M01 文件审计/清洗。** 数据库商品导入、配件 API 和装机功能尚未实现；按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -67,6 +67,35 @@ GitHub Actions 已执行并通过前后端质量检查和真实数据库 smoke�
 实现说明及真实结果：[M00 验收记录](docs/verification/M00.md)。学习讲解及三个练习：[M00 学习笔记](docs/learning-notes/M00.md)。
 
 实现时参考：[Vite 入门](https://vite.dev/guide/)、[FastAPI 最小应用](https://fastapi.tiangolo.com/tutorial/first-steps/)、[uv 项目管理](https://docs.astral.sh/uv/guides/projects/)。
+
+## M01 数据审计与文件清洗
+
+M01 不导入数据库，不调用模型，新增代码仅使用 Python 标准库。前端仍是 M00 状态页。
+
+在项目根目录运行全量验收：
+
+```bash
+python3 scripts/check_m01.py
+```
+
+该脚本校验输入哈希、核对全部 25 类基线、检查每条源行都有去向，并验证重复导出的文件逐字节一致。原始 ZIP 必须在本地；公开仓库和 CI 不包含该文件。
+
+也可在 backend 目录分步执行：
+
+```bash
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.profile --input ../data/raw/csv.zip --output ../data/processed/m01-profile.json
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.clean --input ../data/raw/csv.zip --output ../data/processed/m01-dry-run --dry-run
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.clean --input ../data/raw/csv.zip --output ../data/processed/m01
+```
+
+- dry-run 只输出 profile、quality_report 和归属标记；不写 JSONL、不连接数据库。必须使用独立报告目录，不能覆盖已有完整清洗输出。
+- 完整清洗输出 raw.jsonl、八类 cleaned 文件、extensions.jsonl、quarantine.jsonl 和报告；全部保留在被 Git 忽略的 data/processed/。
+- 源行不合并，candidate_key 只表示疑似同规格候选，不是稳定 SKU。is_quotable 一律 false，待 M02 建立目录身份和选价规则后才能报价。
+- ROUND_HALF_UP 将价格明确舍入到两位小数，原价保留在 raw_data，并记录舍入警告。价格缺失保持 null；冲突不选最低价或均价。
+- 所有现有源字段都保留；不擅自推断 CPU socket、主板 DDR 类型、机箱限长或不确定的频率单位。
+- 重跑只替换本工具拥有且无外来文件的输出目录。不要同时向同一目录运行多个清洗进程。
+
+实际结果与限制：[M01 验收记录](docs/verification/M01.md)。讲解与练习：[M01 学习笔记](docs/learning-notes/M01.md)。
 
 ## 一句话目标
 
@@ -359,6 +388,18 @@ python -m app.etl.import_db --input data/processed/ --apply
 
 ## 10. 严格报价约束
 所有返回报价的数据结构必须包含：`value`, `currency='USD'`, `price_kind='historical_reference'`, `dataset_updated_at='2025-07-23'`, `source_dataset`, `is_quotable`。UI 与 Agent 解释中始终显示同等信息。预算功能第一版只接受 USD，人民币预算提示暂不支持或需要用户明确输入人工设定的换算假设，绝不静默转换。
+
+## M01 实现口径
+
+profile 和 clean CLI 已实现；import_db 属于 M02，尚未实现。命令路径相对于 backend 工作目录时，输入使用 ../data/raw/csv.zip；实际示例见 README。
+
+源记录以输入 hash + 文件路径 + 逻辑记录序号生成 key；同时保存物理起止行号，支持 CSV 多行字段追踪。每条记录独立保留，candidate_key 仅作相同规格候选诊断，不做合并。价格冲突覆盖所有 25 类候选，未选最终价。M01 没有已审核的规范 SKU，因此所有 is_quotable=false；VALID_REFERENCE_PRICE 只说明金额合法，不代表允许严格预算报价。
+
+空价不隔离；非法名称/价格、列结构、非法数值格式或内存二元字段进入 quarantine。普通数字的零/负值等不合理范围优先 WARN，规范字段置 null，源字段保留；金额和内存二元字段的非正值按 ERROR 处理。原始数字保留在 source_fields；单位不明的时钟及尺寸不赋予推测单位。
+
+canonical JSON 使用稳定排序、固定输入版本及 pipeline_version；实际 UTC 完成时间和耗时仅写运行日志，不混入可复现导出内容。dry-run 使用独立目录，只生成报告。写出前先暂存文件，再替换已识别的工具目录；遇到外来文件、raw 路径或不同输入的输出目录直接拒绝。M01 不支持同目录并发导出。
+
+全量验收入口为 scripts/check_m01.py；CI 只使用自行编写的合成 ZIP fixtures。详见 verification/M01.md。
 
 
 ---
@@ -877,17 +918,19 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 **依赖**：M00。**学习**：`with`、迭代器、`csv.DictReader`、`zipfile`、`Decimal`、异常、函数与模块、Pydantic、pytest fixtures、数据溯源。
 
 **实施任务**
-- [ ] 读取原始 ZIP，验证输入 SHA、枚举 25 个 CSV 和字段。
-- [ ] 制作 `profile.json`：每类总行数、非空价、空价、字段空值和重复嫌疑；报告中的基线同本交接包核对。
-- [ ] 先实现 CPU、主板、GPU、内存四类 normalizer，再推广到八类，保留未知类原始行。
-- [ ] 标准化类别、价格、名字、数字/单位、内存 `speed/modules`，并保存 `raw` 信息。
-- [ ] 不完整字段进入 WARN；格式不合法进入 quarantine；提供 `--dry-run`。
-- [ ] 写出 `cleaned_*.jsonl`、`quarantine.jsonl` 和 `quality_report.json`；统一 UTC 时间标识。
-- [ ] 为价格、空值、错误格式、同名不同 SKU、重复源行写单测。
+- [x] 读取原始 ZIP，验证输入 SHA、枚举 25 个 CSV 和字段。
+- [x] 制作 `profile.json`：每类总行数、非空价、空价、字段空值和重复嫌疑；报告中的基线同本交接包核对。
+- [x] 先实现 CPU、主板、GPU、内存四类 normalizer，再推广到八类，保留未知类原始行。
+- [x] 标准化类别、价格、名字、数字/单位、内存 `speed/modules`，并保存 `raw` 信息。
+- [x] 不完整字段进入 WARN；格式不合法进入 quarantine；提供 `--dry-run`。
+- [x] 写出 `cleaned_*.jsonl`、`quarantine.jsonl` 和 `quality_report.json`；统一 UTC 时间标识。
+- [x] 为价格、空值、错误格式、同名不同 SKU、重复源行写单测。
 
 **练习**：自己修改 `normalize_memory()`，增加 3 个异常输入；解释为何不能简单 `dropna()` 和 `.drop_duplicates(name)`。
 
 **验收门槛**：25 类 66,778 源行可数；16,222 非空价；原始文件不变；输出重复运行确定；失败有行号与原因；所有测试通过。
+
+实际验收：见 [M01 验收记录](verification/M01.md)。M01 输出是源候选，不代表已可直接报价的规范 SKU。
 
 ## M02｜数据库模型与 ETL 导入（Bronze/Silver/Gold）
 **依赖**：M01。**学习**：数据库约束、事务、ORM、迁移、UPSERT、索引、幂等、Decimal/NUMERIC 与 JSONB。
@@ -1382,7 +1425,7 @@ cd frontend && npm run typecheck && npm run test
 
 # 11｜实施计划修订与业务契约
 
-修订日期：2026-10-13。状态：设计已修订；M00 工程基座已实现，业务阶段尚未实施。
+修订日期：2026-10-13。状态：设计已修订；M00 工程基座与 M01 文件 ETL 已实现，数据库业务阶段尚未实施。
 
 本文件补充并修订原交接计划。与其他文档冲突时，以本文件对应条款为准；实施各阶段时同步更新具体接口、迁移和测试。原始数据及历史 USD 口径不变。
 
@@ -1456,7 +1499,7 @@ cd frontend && npm run typecheck && npm run test
 - 建议执行顺序：M00 → M01 → M02 → M03 → M04 → M05 → M08 → M06 → M07 → M10 → M09 → M11 → M12。
 - M08 提前时只交付规则、规格补充和手动工作台；Agent 工具接入在 M06/M07 完成后、M10 前实施。M10 不依赖 RAG；M11 依赖 M09 和 M10。
 - 编号保持不变。因执行顺序调整，V0.2 发布门槛包含 M05–M08，V0.3 包含 M09–M10；V0.1 和 V1.0 不变。
-- 每次只实施用户指定阶段。M00 已实现，当前进度见 verification/M00.md；M01–M12 尚未实施。
+- 每次只实施用户指定阶段。M00、M01 已实现，当前进度见 verification/M00.md 和 verification/M01.md；M02–M12 尚未实施。
 
 ## 9. 修订对应关系
 

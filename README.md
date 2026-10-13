@@ -1,8 +1,8 @@
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M00 工程基座）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M01 文件 ETL）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00 工程基座已实现；验收结果见 docs/verification/M00.md。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00 工程基座与 M01 文件 ETL 已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00：前后端环境、健康检查、PostgreSQL、自动测试与基础 CI 配置。** M01 及后续业务尚未实现；按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座和 M01 文件审计/清洗。** 数据库商品导入、配件 API 和装机功能尚未实现；按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -58,6 +58,35 @@ GitHub Actions 已执行并通过前后端质量检查和真实数据库 smoke�
 实现说明及真实结果：[M00 验收记录](docs/verification/M00.md)。学习讲解及三个练习：[M00 学习笔记](docs/learning-notes/M00.md)。
 
 实现时参考：[Vite 入门](https://vite.dev/guide/)、[FastAPI 最小应用](https://fastapi.tiangolo.com/tutorial/first-steps/)、[uv 项目管理](https://docs.astral.sh/uv/guides/projects/)。
+
+## M01 数据审计与文件清洗
+
+M01 不导入数据库，不调用模型，新增代码仅使用 Python 标准库。前端仍是 M00 状态页。
+
+在项目根目录运行全量验收：
+
+```bash
+python3 scripts/check_m01.py
+```
+
+该脚本校验输入哈希、核对全部 25 类基线、检查每条源行都有去向，并验证重复导出的文件逐字节一致。原始 ZIP 必须在本地；公开仓库和 CI 不包含该文件。
+
+也可在 backend 目录分步执行：
+
+```bash
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.profile --input ../data/raw/csv.zip --output ../data/processed/m01-profile.json
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.clean --input ../data/raw/csv.zip --output ../data/processed/m01-dry-run --dry-run
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.clean --input ../data/raw/csv.zip --output ../data/processed/m01
+```
+
+- dry-run 只输出 profile、quality_report 和归属标记；不写 JSONL、不连接数据库。必须使用独立报告目录，不能覆盖已有完整清洗输出。
+- 完整清洗输出 raw.jsonl、八类 cleaned 文件、extensions.jsonl、quarantine.jsonl 和报告；全部保留在被 Git 忽略的 data/processed/。
+- 源行不合并，candidate_key 只表示疑似同规格候选，不是稳定 SKU。is_quotable 一律 false，待 M02 建立目录身份和选价规则后才能报价。
+- ROUND_HALF_UP 将价格明确舍入到两位小数，原价保留在 raw_data，并记录舍入警告。价格缺失保持 null；冲突不选最低价或均价。
+- 所有现有源字段都保留；不擅自推断 CPU socket、主板 DDR 类型、机箱限长或不确定的频率单位。
+- 重跑只替换本工具拥有且无外来文件的输出目录。不要同时向同一目录运行多个清洗进程。
+
+实际结果与限制：[M01 验收记录](docs/verification/M01.md)。讲解与练习：[M01 学习笔记](docs/learning-notes/M01.md)。
 
 ## 一句话目标
 
