@@ -1,0 +1,22 @@
+# Do not publish the original third-party source dataset automatically.
+data/raw/*.zip
+data/processed/
+data/reports/quality_report*.json
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+dist/
+build/
+coverage/
+*.pyc
+.DS_Store
+
+# Local developer caches and browser artifacts
+*.tsbuildinfo
+playwright-report/
+test-results/

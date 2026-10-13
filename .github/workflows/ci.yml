@@ -1,0 +1,46 @@
+name: M00 quality gates
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.5"
+      - name: Configure local credentials
+        run: python3 scripts/setup_env.py
+      - name: Install locked dependencies
+        run: |
+          cd backend
+          uv sync --locked
+          cd ../frontend
+          npm ci
+      - name: Backend quality
+        working-directory: backend
+        run: |
+          uv run --locked ruff check --config pyproject.toml . ../scripts
+          uv run --locked ruff format --check --config pyproject.toml . ../scripts
+          uv run --locked pytest -q
+      - name: Frontend quality
+        working-directory: frontend
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run test
+          npm run build
+      - name: Start PostgreSQL
+        run: docker compose --env-file .env -f infra/docker-compose.yml up -d --wait
+      - name: Real database smoke check
+        run: python3 scripts/smoke.py
+      - name: Stop PostgreSQL without deleting data
+        if: always()
+        run: docker compose --env-file .env -f infra/docker-compose.yml down

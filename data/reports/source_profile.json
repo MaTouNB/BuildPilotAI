@@ -1,0 +1,406 @@
+{
+  "source": "https://github.com/docyx/pc-part-dataset",
+  "dataset_last_updated": "2025-07-23",
+  "date_semantics": "dataset-level last updated; per-item price observation time unknown",
+  "currency": "USD",
+  "zip_filename": "csv.zip",
+  "zip_size_bytes": 718533,
+  "zip_sha256": "5c3073dbe3ea2241c8b907b0a119bec6992fa4d3335c958569027c2f066b49ab",
+  "total_files": 25,
+  "total_rows": 66778,
+  "price_nonempty_rows": 16222,
+  "price_empty_rows": 50556,
+  "categories": [
+    {
+      "file": "csv/case-accessory.csv",
+      "category": "case-accessory",
+      "rows": 8,
+      "price_nonempty": 0,
+      "price_empty": 8,
+      "fields": [
+        "name",
+        "price",
+        "type",
+        "form_factor"
+      ]
+    },
+    {
+      "file": "csv/case-fan.csv",
+      "category": "case-fan",
+      "rows": 2744,
+      "price_nonempty": 1000,
+      "price_empty": 1744,
+      "fields": [
+        "name",
+        "price",
+        "size",
+        "color",
+        "rpm",
+        "airflow",
+        "noise_level",
+        "pwm"
+      ]
+    },
+    {
+      "file": "csv/case.csv",
+      "category": "case",
+      "rows": 6626,
+      "price_nonempty": 1053,
+      "price_empty": 5573,
+      "fields": [
+        "name",
+        "price",
+        "type",
+        "color",
+        "psu",
+        "side_panel",
+        "external_volume",
+        "internal_35_bays"
+      ]
+    },
+    {
+      "file": "csv/cpu-cooler.csv",
+      "category": "cpu-cooler",
+      "rows": 2851,
+      "price_nonempty": 946,
+      "price_empty": 1905,
+      "fields": [
+        "name",
+        "price",
+        "rpm",
+        "noise_level",
+        "color",
+        "size"
+      ]
+    },
+    {
+      "file": "csv/cpu.csv",
+      "category": "cpu",
+      "rows": 1413,
+      "price_nonempty": 547,
+      "price_empty": 866,
+      "fields": [
+        "name",
+        "price",
+        "core_count",
+        "core_clock",
+        "boost_clock",
+        "microarchitecture",
+        "tdp",
+        "graphics"
+      ]
+    },
+    {
+      "file": "csv/external-hard-drive.csv",
+      "category": "external-hard-drive",
+      "rows": 690,
+      "price_nonempty": 304,
+      "price_empty": 386,
+      "fields": [
+        "name",
+        "price",
+        "type",
+        "interface",
+        "capacity",
+        "price_per_gb",
+        "color"
+      ]
+    },
+    {
+      "file": "csv/fan-controller.csv",
+      "category": "fan-controller",
+      "rows": 54,
+      "price_nonempty": 9,
+      "price_empty": 45,
+      "fields": [
+        "name",
+        "price",
+        "channels",
+        "channel_wattage",
+        "pwm",
+        "form_factor",
+        "color"
+      ]
+    },
+    {
+      "file": "csv/headphones.csv",
+      "category": "headphones",
+      "rows": 2946,
+      "price_nonempty": 664,
+      "price_empty": 2282,
+      "fields": [
+        "name",
+        "price",
+        "type",
+        "frequency_response",
+        "microphone",
+        "wireless",
+        "enclosure_type",
+        "color"
+      ]
+    },
+    {
+      "file": "csv/internal-hard-drive.csv",
+      "category": "internal-hard-drive",
+      "rows": 6461,
+      "price_nonempty": 2103,
+      "price_empty": 4358,
+      "fields": [
+        "name",
+        "price",
+        "capacity",
+        "price_per_gb",
+        "type",
+        "cache",
+        "form_factor",
+        "interface"
+      ]
+    },
+    {
+      "file": "csv/keyboard.csv",
+      "category": "keyboard",
+      "rows": 4310,
+      "price_nonempty": 824,
+      "price_empty": 3486,
+      "fields": [
+        "name",
+        "price",
+        "style",
+        "switches",
+        "backlit",
+        "tenkeyless",
+        "connection_type",
+        "color"
+      ]
+    },
+    {
+      "file": "csv/memory.csv",
+      "category": "memory",
+      "rows": 13553,
+      "price_nonempty": 2907,
+      "price_empty": 10646,
+      "fields": [
+        "name",
+        "price",
+        "speed",
+        "modules",
+        "price_per_gb",
+        "color",
+        "first_word_latency",
+        "cas_latency"
+      ]
+    },
+    {
+      "file": "csv/monitor.csv",
+      "category": "monitor",
+      "rows": 5074,
+      "price_nonempty": 1367,
+      "price_empty": 3707,
+      "fields": [
+        "name",
+        "price",
+        "screen_size",
+        "resolution",
+        "refresh_rate",
+        "response_time",
+        "panel_type",
+        "aspect_ratio"
+      ]
+    },
+    {
+      "file": "csv/motherboard.csv",
+      "category": "motherboard",
+      "rows": 4973,
+      "price_nonempty": 951,
+      "price_empty": 4022,
+      "fields": [
+        "name",
+        "price",
+        "socket",
+        "form_factor",
+        "max_memory",
+        "memory_slots",
+        "color"
+      ]
+    },
+    {
+      "file": "csv/mouse.csv",
+      "category": "mouse",
+      "rows": 2806,
+      "price_nonempty": 845,
+      "price_empty": 1961,
+      "fields": [
+        "name",
+        "price",
+        "tracking_method",
+        "connection_type",
+        "max_dpi",
+        "hand_orientation",
+        "color"
+      ]
+    },
+    {
+      "file": "csv/optical-drive.csv",
+      "category": "optical-drive",
+      "rows": 231,
+      "price_nonempty": 28,
+      "price_empty": 203,
+      "fields": [
+        "name",
+        "price",
+        "bd",
+        "dvd",
+        "cd",
+        "bd_write",
+        "dvd_write",
+        "cd_write"
+      ]
+    },
+    {
+      "file": "csv/os.csv",
+      "category": "os",
+      "rows": 62,
+      "price_nonempty": 12,
+      "price_empty": 50,
+      "fields": [
+        "name",
+        "price",
+        "mode",
+        "max_memory"
+      ]
+    },
+    {
+      "file": "csv/power-supply.csv",
+      "category": "power-supply",
+      "rows": 3438,
+      "price_nonempty": 567,
+      "price_empty": 2871,
+      "fields": [
+        "name",
+        "price",
+        "type",
+        "efficiency",
+        "wattage",
+        "modular",
+        "color"
+      ]
+    },
+    {
+      "file": "csv/sound-card.csv",
+      "category": "sound-card",
+      "rows": 77,
+      "price_nonempty": 12,
+      "price_empty": 65,
+      "fields": [
+        "name",
+        "price",
+        "channels",
+        "digital_audio",
+        "snr",
+        "sample_rate",
+        "chipset",
+        "interface"
+      ]
+    },
+    {
+      "file": "csv/speakers.csv",
+      "category": "speakers",
+      "rows": 302,
+      "price_nonempty": 124,
+      "price_empty": 178,
+      "fields": [
+        "name",
+        "price",
+        "configuration",
+        "wattage",
+        "frequency_response",
+        "color"
+      ]
+    },
+    {
+      "file": "csv/thermal-paste.csv",
+      "category": "thermal-paste",
+      "rows": 210,
+      "price_nonempty": 102,
+      "price_empty": 108,
+      "fields": [
+        "name",
+        "price",
+        "amount"
+      ]
+    },
+    {
+      "file": "csv/ups.csv",
+      "category": "ups",
+      "rows": 702,
+      "price_nonempty": 302,
+      "price_empty": 400,
+      "fields": [
+        "name",
+        "price",
+        "capacity_w",
+        "capacity_va"
+      ]
+    },
+    {
+      "file": "csv/video-card.csv",
+      "category": "video-card",
+      "rows": 6636,
+      "price_nonempty": 1275,
+      "price_empty": 5361,
+      "fields": [
+        "name",
+        "price",
+        "chipset",
+        "memory",
+        "core_clock",
+        "boost_clock",
+        "color",
+        "length"
+      ]
+    },
+    {
+      "file": "csv/webcam.csv",
+      "category": "webcam",
+      "rows": 78,
+      "price_nonempty": 59,
+      "price_empty": 19,
+      "fields": [
+        "name",
+        "price",
+        "resolutions",
+        "connection",
+        "focus_type",
+        "os",
+        "fov"
+      ]
+    },
+    {
+      "file": "csv/wired-network-card.csv",
+      "category": "wired-network-card",
+      "rows": 157,
+      "price_nonempty": 84,
+      "price_empty": 73,
+      "fields": [
+        "name",
+        "price",
+        "interface",
+        "color"
+      ]
+    },
+    {
+      "file": "csv/wireless-network-card.csv",
+      "category": "wireless-network-card",
+      "rows": 376,
+      "price_nonempty": 137,
+      "price_empty": 239,
+      "fields": [
+        "name",
+        "price",
+        "protocol",
+        "interface",
+        "color"
+      ]
+    }
+  ]
+}
