@@ -1,6 +1,6 @@
 # BuildPilot AI — 完整项目实施手册（M00 修订版）
 
-2026-10-13：M00 工程基座已实现；其余阶段为设计稿。业务规则见 docs/11_PLAN_REVISION.md，验收见 docs/verification/M00.md。
+2026-10-13：M00 工程基座与远端 CI 已通过；其余阶段为设计稿。业务规则见 docs/11_PLAN_REVISION.md，验收见 docs/verification/M00.md。
 
 
 ---
@@ -52,7 +52,7 @@ cd frontend
 npm run dev
 ```
 
-GitHub Actions 配置已添加，覆盖同样的检查和真实数据库 smoke；尚未在远端执行。CI 不依赖原始第三方 ZIP。
+GitHub Actions 已执行并通过前后端质量检查和真实数据库 smoke：[M00 基线 CI](https://github.com/MaTouNB/BuildPilotAI/actions/runs/38364422647)（提交 32d98f8）。CI 不依赖原始第三方 ZIP。
 
 ### 停止、清理与故障定位
 
@@ -871,7 +871,7 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 
 **验收门槛**：页面可见；`GET /health = 200`；数据库健康；测试与静态检查通过；无硬编码密码/模型 Key。
 
-实际验收：见 [M00 验收记录](verification/M00.md)。基础 CI 已提前加入，但远端执行仍待推送仓库后验证。
+实际验收：见 [M00 验收记录](verification/M00.md)。基础 CI 已提前加入，完整 M00 基线已推送，GitHub CI 验证通过。
 
 ## M01｜做出可复现的数据审计与清洗（先不建业务数据库）
 **依赖**：M00。**学习**：`with`、迭代器、`csv.DictReader`、`zipfile`、`Decimal`、异常、函数与模块、Pydantic、pytest fixtures、数据溯源。

@@ -43,7 +43,7 @@ cd frontend
 npm run dev
 ```
 
-GitHub Actions 配置已添加，覆盖同样的检查和真实数据库 smoke；尚未在远端执行。CI 不依赖原始第三方 ZIP。
+GitHub Actions 已执行并通过前后端质量检查和真实数据库 smoke：[M00 基线 CI](https://github.com/MaTouNB/BuildPilotAI/actions/runs/38364422647)（提交 32d98f8）。CI 不依赖原始第三方 ZIP。
 
 ### 停止、清理与故障定位
 

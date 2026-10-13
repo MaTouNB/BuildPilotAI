@@ -23,7 +23,7 @@
 
 **验收门槛**：页面可见；`GET /health = 200`；数据库健康；测试与静态检查通过；无硬编码密码/模型 Key。
 
-实际验收：见 [M00 验收记录](verification/M00.md)。基础 CI 已提前加入，但远端执行仍待推送仓库后验证。
+实际验收：见 [M00 验收记录](verification/M00.md)。基础 CI 已提前加入，完整 M00 基线已推送，GitHub CI 验证通过。
 
 ## M01｜做出可复现的数据审计与清洗（先不建业务数据库）
 **依赖**：M00。**学习**：`with`、迭代器、`csv.DictReader`、`zipfile`、`Decimal`、异常、函数与模块、Pydantic、pytest fixtures、数据溯源。
