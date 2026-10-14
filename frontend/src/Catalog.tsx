@@ -1,27 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Alert from 'antd/es/alert'
 import Button from 'antd/es/button'
 import Drawer from 'antd/es/drawer'
 import Tag from 'antd/es/tag'
-import { get, type Category, type Detail, type Page, type Part, type Price, type Sources } from './api'
+import { type Category, type Detail, type Page, type Part, type Price, type Sources } from './api'
 
-type State<T> = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: T }
-function useResource<T>(path: string, attempt = 0): State<T> {
-  const key = `${path}:${attempt}`
-  const [result, setResult] = useState<{ key: string; value: State<T> } | null>(null)
-  useEffect(() => {
-    let active = true
-    const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 8000)
-    void get<T>(path, controller.signal).then(data => {
-      if (active) setResult({ key, value: { status: 'ready', data } })
-    }).catch(() => {
-      if (active) setResult({ key, value: { status: 'error', message: '目录暂时无法加载，请检查服务或稍后重试。' } })
-    }).finally(() => window.clearTimeout(timeout))
-    return () => { active = false; controller.abort(); window.clearTimeout(timeout) }
-  }, [path, key])
-  return result?.key === key ? result.value : { status: 'loading' }
-}
+import { useResource } from './useResource'
+
 const labels: Record<string, string> = { CPU: '处理器', GPU: '显卡', MOTHERBOARD: '主板', MEMORY: '内存', STORAGE: '存储', PSU: '电源', CASE: '机箱', COOLER: '散热器' }
 const statusLabels: Record<string, string> = { SELECTED: '已选历史价', MISSING: '价格缺失', UNSELECTED: '历史价未选定', CONFLICT_REVIEW: '价格冲突待审' }
 function PriceView({ part }: { part: Part }) {

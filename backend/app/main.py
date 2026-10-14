@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.builds import router as builds_router
 from app.catalog import router
 from app.config import Settings
 
@@ -33,11 +34,12 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
         if engine is None and application.state.catalog_engine is not None:
             application.state.catalog_engine.dispose()
 
-    application = FastAPI(title="BuildPilot AI", version="0.3.0", lifespan=lifespan)
+    application = FastAPI(title="BuildPilot AI", version="0.4.0", lifespan=lifespan)
     application.state.engine_lock = Lock()
     application.state.settings = config
     application.state.catalog_engine = engine
     application.include_router(router)
+    application.include_router(builds_router)
 
     @application.middleware("http")
     async def request_id(request: Request, call_next):
@@ -68,6 +70,12 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
             if exc.status_code == 404
             else "DATABASE_UNAVAILABLE"
             if exc.status_code == 503
+            else "VERSION_CONFLICT"
+            if exc.status_code == 409
+            else "AUTH_REQUIRED"
+            if exc.status_code == 401
+            else "FORBIDDEN"
+            if exc.status_code == 403
             else "INVALID_QUERY",
             str(exc.detail),
         )

@@ -1,8 +1,8 @@
-# 04｜REST API 与 SSE 事件契约（M03 实现与后续设计）
+# 04｜REST API 与 SSE 事件契约（M03/M04 实现与后续设计）
 
 > 2026-10-13 修订：本章须与 [实施计划修订与业务契约](11_PLAN_REVISION.md) 一起使用；冲突处以修订条款为准。执行顺序与原阶段编号不同，见修订第 8 节。
 
-> M00 健康检查及 M03 公共目录已实现；M04 及后续接口仍为设计。版本前缀 `/api/v1`，当前响应契约见 backend/app/catalog_schemas.py 和 /docs。
+> M00 健康检查、M03 公共目录及 M04 手动装机已实现；M05 及后续仍为设计。版本前缀 `/api/v1`，当前响应契约见 backend/app/catalog_schemas.py 和 /docs。
 
 ## 1. 通用规范
 - API：`/api/v1`；JSON 使用 snake_case（前端按类型生成）；分页 `page/page_size`，总数 `total`；错误均返回明确 `code/message/request_id/details`（用户不应看到内部 traceback）。
@@ -163,3 +163,26 @@ data: {"request_id":"abc"}
 | GET | /ready | 数据库 SELECT 1 成功为 200，`{"status":"ready","database":"connected"}`；未配置或数据库错误为 503，`{"status":"unavailable"}` |
 
 以上为工程探测接口，其余业务接口仍是设计稿。探测失败不向客户端返回连接参数或异常细节。
+
+## M04 已实现契约（优先于上文方案示例）
+
+- 本地 Demo 开关 `DEMO_ENABLED`，Settings 默认关闭，开发 .env.example 显式开启。仅允许 loopback 请求、受限 Host/Origin，拒绝跨站请求；关闭后所有装机接口返回401。没有实现登录或多用户认证。
+- tenant/user_account 专用 Demo 行由迁移创建，服务端选择固定身份；输入额外字段被拒绝，客户端不能声明 owner/tenant 或权威金额。
+- GET /api/v1/builds：活动草稿分页 items/total/page/page_size，page=1–10000，page_size=1–100；GET /builds/{id} 返回可见草稿，归档/其他归属返回404。
+- POST /builds：name（1–120，去首尾空白）、purpose（最多500，默认空）、budget_amount（正数两位Decimal或null）、budget_currency（仅USD）。返回201，空草稿版本1。
+- PATCH /builds/{id}：上述完整元信息 + expected_version（正整数）；修改、移除、归档每次将版本递增1。此 PATCH 是完整元信息替换，省略 purpose/budget 会清空它们，前端发送当前完整值。
+- PUT /builds/{id}/items/{slot}：part_id、quantity（严格整数1–99）、expected_price_id（当前所见报价UUID或null，必填）、expected_version。类别必须与八类槽位一致。已停用/不存在商品返回404或422。
+- expected_price_id 只用于验证已确认 Diff 中的源价，没有覆盖服务器金额的能力。报价变化返回409；缺价/未选价商品可存未报价条目。客户端 price_snapshot_usd 等额外字段返回422。
+- 同槽位同商品仅改数量，保留原报价ID/金额/日期，包括原来缺价的快照；换成不同商品才取新的已选价格。不能通过同一商品数量操作偷偷重新选价。
+- DELETE /builds/{id}/items/{slot}：JSON body expected_version；移除条目，空槽位404。DELETE /builds/{id}：同一 body，软归档并保留数据，返回归档后的方案；不再列入活动列表。
+- 所有写请求必须携带 UUID 类型 Idempotency-Key。在同事务内锁请求键、检查版本、写快照与持久化响应。相同键同方法/路径/请求体返回原结果，不重复应用；换请求内容返回409。关闭Demo后不得靠旧键读取结果。
+- 对业务变更使用行锁及版本校验；选价与ETL共用 transaction advisory lock。写事务锁等待及单语句上限5秒，数据库失败回滚并返回503；前端8秒超时后可用同一键核对/重试。
+- 返回 items 中的 slot/part_id/part_name/quantity/part_price_id/price_snapshot_usd/currency/source_name/dataset_updated_at/subtotal_usd；快照来自数据库NUMERIC、历史日期及具体报价FK，不随以后选价变化。
+- 返回 total_usd（已报价小计字符串）、price_is_complete、build_is_complete、total_is_complete、over_budget、missing_components、unpriced_slots、pending_requirements、checked_rules_status=UNKNOWN。
+- 空方案价格不完整；全部已选条目有价不代表整机完整。必需六类 + 显示与散热要求独立判定。M04 尚无审核规格 override，未选 GPU/COOLER 时保守列为待确认，不从 source_fields.graphics 或包装文字猜测可省略。
+- 只有八类齐全且全部已选条目有快照时，当前模板才称“完整整机历史参考总价”。这仍不代表已验证兼容。
+- 金额为字符串/null，预算和小计均USD。内存 quantity 是套装数量，不乘套装内 modules 字段。
+- 409 的 error.code=VERSION_CONFLICT，401=AUTH_REQUIRED，403=FORBIDDEN，沿用请求ID与脱敏错误。
+- 前端在每次写入前显示修改前/后 Diff 和确认按钮。M04 是手动 HTTP 操作；没有 Agent、提案审批库或 M10 权限/审批恢复机制。
+
+M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接口在M08实现。

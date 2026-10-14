@@ -117,6 +117,7 @@ class PartPrice(Base):
             ["source_row_id", "batch_id"], ["raw_import_row.id", "raw_import_row.batch_id"]
         ),
         UniqueConstraint("batch_id", "source_row_id"),
+        UniqueConstraint("id", "part_id", name="uq_price_id_part"),
         CheckConstraint("currency = 'USD'"),
         CheckConstraint("price_kind = 'historical_reference'"),
         CheckConstraint("price_usd IS NULL OR price_usd > 0"),
@@ -165,3 +166,89 @@ class DataQualityIssue(Base):
     message: Mapped[str] = mapped_column(Text)
     details: Mapped[dict] = mapped_column(JSONB)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Tenant(Base):
+    __tablename__ = "tenant"
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    name: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20))
+
+
+class UserAccount(Base):
+    __tablename__ = "user_account"
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    username: Mapped[str] = mapped_column(String(100), unique=True)
+    status: Mapped[str] = mapped_column(String(20))
+
+
+class Build(Base):
+    __tablename__ = "build"
+    __table_args__ = (
+        CheckConstraint("version >= 1"),
+        CheckConstraint("status IN ('draft','archived')"),
+        CheckConstraint("budget_currency = 'USD'"),
+        CheckConstraint(
+            "budget_amount IS NULL OR (budget_amount > 0 AND budget_amount <> 'NaN'::numeric)"
+        ),
+        Index("ix_build_owner", "tenant_id", "owner_user_id", "status"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenant.id"))
+    owner_user_id: Mapped[UUID] = mapped_column(ForeignKey("user_account.id"))
+    name: Mapped[str] = mapped_column(String(120))
+    purpose: Mapped[str] = mapped_column(Text)
+    budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    budget_currency: Mapped[str] = mapped_column(String(3))
+    version: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BuildItem(Base):
+    __tablename__ = "build_item"
+    __table_args__ = (
+        UniqueConstraint("build_id", "slot"),
+        ForeignKeyConstraint(["part_price_id", "part_id"], ["part_price.id", "part_price.part_id"]),
+        CheckConstraint(
+            "slot IN ('CPU','GPU','MOTHERBOARD','MEMORY','STORAGE','PSU','CASE','COOLER')"
+        ),
+        CheckConstraint("quantity BETWEEN 1 AND 99"),
+        CheckConstraint("snapshot_currency IS NULL OR snapshot_currency = 'USD'"),
+        CheckConstraint(
+            "price_snapshot_usd IS NULL OR (price_snapshot_usd > 0 AND "
+            "price_snapshot_usd <> 'NaN'::numeric)"
+        ),
+        CheckConstraint(
+            "(price_snapshot_usd IS NULL AND part_price_id IS NULL AND "
+            "snapshot_currency IS NULL AND price_source IS NULL AND "
+            "price_dataset_updated_at IS NULL) OR (price_snapshot_usd IS NOT NULL AND "
+            "part_price_id IS NOT NULL AND snapshot_currency IS NOT NULL AND "
+            "price_source IS NOT NULL AND price_dataset_updated_at IS NOT NULL)"
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    build_id: Mapped[UUID] = mapped_column(ForeignKey("build.id"), index=True)
+    slot: Mapped[str] = mapped_column(String(30))
+    part_id: Mapped[UUID] = mapped_column(ForeignKey("hardware_part.id"))
+    part_name: Mapped[str] = mapped_column(Text)
+    quantity: Mapped[int] = mapped_column(Integer)
+    part_price_id: Mapped[UUID | None] = mapped_column(Uuid)
+    price_snapshot_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    snapshot_currency: Mapped[str | None] = mapped_column(String(3))
+    price_source: Mapped[str | None] = mapped_column(Text)
+    price_dataset_updated_at: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BuildRequest(Base):
+    __tablename__ = "build_request"
+    __table_args__ = (UniqueConstraint("tenant_id", "owner_user_id", "request_key"),)
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenant.id"))
+    owner_user_id: Mapped[UUID] = mapped_column(ForeignKey("user_account.id"))
+    request_key: Mapped[UUID] = mapped_column(Uuid)
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    response: Mapped[dict] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

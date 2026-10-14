@@ -104,3 +104,13 @@ import_attempt 保存每次实际导入/审核尝试、声明的审核者与理�
 本轮真实集成测试在随机拥有的 schema 中应用迁移、执行事务并清理，不删除 public 业务表。迁移参考 [Alembic 官方教程](https://alembic.sqlalchemy.org/en/latest/tutorial.html)，事务参考 [SQLAlchemy 官方教程](https://docs.sqlalchemy.org/en/20/tutorial/dbapi_transactions.html)，锁参考 [PostgreSQL 显式锁文档](https://www.postgresql.org/docs/17/explicit-locking.html)。
 
 M01 JSON 内的 import_batch_id 是文件处理指纹；数据库批次使用由输入 SHA/pipeline 确定的 UUID。原 JSON 不重写，数据库归属通过 batch_id 外键表达。
+
+## M04 实现
+
+迁移 m04_001 新增 tenant/user_account（仅最小 Demo 身份，无密码登录）、build、build_item、build_request。Demo UUID 是迁移创建的固定专用身份，不由客户端提交或归给首个登录账户。
+
+build 带归属外键、draft/archived、version、USD 正数预算/null。build_item 每槽位一条，数量1–99，保存商品名和报价快照，缺价快照全部相关列null。报价ID+part_id复合外键保证不能引用其他商品价格；对应新增 part_price(id,part_id) 唯一约束。NUMERIC检查拒绝零价、NaN、非USD、不完整快照。
+
+build_request 对(tenant_id,owner_user_id,request_key)唯一，保存请求内容指纹和事务完成响应。写事务使用请求键 advisory lock、build行锁、显式版本校验，选价复用ETL锁。幂等结果与业务变更一起提交；失败回滚两者。此表不是完整审批审计，M10另行实现。
+
+总价由读取快照Decimal计算，不存可被客户端覆盖的总价。quantity变化保留快照；替换不同商品取新快照。软归档不会删除条目/报价/幂等记录。M05将增加认证字段与完整ACL，并默认关闭Demo，不自动迁移归属。

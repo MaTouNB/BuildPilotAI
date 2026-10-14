@@ -1,17 +1,17 @@
-# BuildPilot AI — 完整项目实施手册（M03 修订版）
+# BuildPilot AI — 完整项目实施手册（M04 修订版）
 
-2026-10-14：M00–M03 已验收；后续为设计稿。
+2026-10-14：M00–M04 已验收；后续为设计稿。
 
 
 ---
 
 <!-- 源文件：README.md -->
 
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M03 硬件目录）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M04 手动装机）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M02 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M04 已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；装机功能尚未实现。按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，登录/AI尚未实现。按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -33,7 +33,7 @@ make dev     # 同时启动前后端；Ctrl+C 停止两者
 - OpenAPI：http://127.0.0.1:8000/docs
 - 数据库：127.0.0.1:5433；密码只在本地 .env，脚本随机生成且不显示。
 
-前端通过 Vite 同源代理访问 /health、/ready、/api，不需要开放跨域。只绑定 loopback，当前是单用户 Demo，尚未启用认证或业务 CRUD。
+前端通过 Vite 同源代理访问 /health、/ready、/api，不需要开放跨域。只绑定 loopback，当前是单用户 Demo，尚未启用认证，M04 业务 CRUD 只在本地 Demo 中开放。
 
 ### 测试与检查
 
@@ -160,9 +160,32 @@ make check-db
 
 **真实目录当前有2个已审核演示商品**：用户已批准 AMD Ryzen 7 9800X3D（USD 451.50）和 MSI GeForce RTX 3060 Ventus 2X 12G（USD 299.97）的独立身份及源价，已应用并验证重跑幂等。其余源记录仍待审；新环境未应用本地审核文件时会显示空目录及原因。原始数据、审核文件和清洗输出不提交 GitHub。
 
-接口/UI、自动测试和真实 CPU/GPU 搜索/详情验收通过。没有实现登录、装机 CRUD 或 AI。
+接口/UI、自动测试和真实 CPU/GPU 搜索/详情验收通过。M03仅提供目录；M04写操作见下节，登录与AI尚未实现。
 
 [M03 验收与限制](docs/verification/M03.md) · [M03 学习笔记](docs/learning-notes/M03.md) · [当前 API 契约](docs/04_API.md)
+
+## M04 手动装机工作台
+
+```bash
+make setup
+make db-up
+make db-migrate
+make dev
+make check
+make check-db
+```
+
+已有 .env 时，显式添加 `DEMO_ENABLED=true` 并重启后端；setup保留已有配置。Settings默认关闭Demo，开发.env.example显式开启。当前已为此本地环境启用。关闭后装机接口返回401；公共目录仍可读。
+
+打开5173的“装机工作台”，创建草稿、设置USD预算、按八类搜索选配、预览修改前/后Diff再确认。修改数量保持旧价格快照；换不同商品取当前已选价。取消不写入；服务器版本/选价变化返回409并要求重新核对。归档从活动列表移除，数据保留。
+
+方案、条目和快照保存在PostgreSQL；页面刷新恢复选中的方案。导航偏好只记在浏览器localStorage。总价始终为已报价小计，仅组件与价格均完整才显示完整整机历史参考总价；兼容规则尚未执行，状态UNKNOWN。
+
+本地演示草稿含已批准CPU/GPU各1件：USD751.47历史小计，预算USD700.00，显示超预算、缺组件及散热待确认。当前实际目录只有两条审核商品，所以不能伪称已组出完整整机。完整八类、缺价、并发/幂等场景由隔离PostgreSQL测试验证。
+
+Demo只允许本地访问，并检查Host/Origin、拒绝跨站请求；所有本地操作者共享专用Demo身份，不能当作正式认证或多用户权限隔离。M05另行实现登录。不要用此开发模式发布到公网。
+
+[M04 验收记录](docs/verification/M04.md) · [M04 学习笔记](docs/learning-notes/M04.md) · [M04 API 契约](docs/04_API.md)
 
 ## 一句话目标
 
@@ -221,7 +244,7 @@ make check-db
 
 # Codex 工作规范（必须遵守）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M02 已验收；M03 已通过真实样例验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M04 已验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
 
 ## 1. 工作模式
 - 每次只实施用户指定的 `Mxx` 阶段。不得主动跨越未完成里程碑，也不得一次“生成整个项目”。
@@ -678,16 +701,26 @@ import_attempt 保存每次实际导入/审核尝试、声明的审核者与理�
 
 M01 JSON 内的 import_batch_id 是文件处理指纹；数据库批次使用由输入 SHA/pipeline 确定的 UUID。原 JSON 不重写，数据库归属通过 batch_id 外键表达。
 
+## M04 实现
+
+迁移 m04_001 新增 tenant/user_account（仅最小 Demo 身份，无密码登录）、build、build_item、build_request。Demo UUID 是迁移创建的固定专用身份，不由客户端提交或归给首个登录账户。
+
+build 带归属外键、draft/archived、version、USD 正数预算/null。build_item 每槽位一条，数量1–99，保存商品名和报价快照，缺价快照全部相关列null。报价ID+part_id复合外键保证不能引用其他商品价格；对应新增 part_price(id,part_id) 唯一约束。NUMERIC检查拒绝零价、NaN、非USD、不完整快照。
+
+build_request 对(tenant_id,owner_user_id,request_key)唯一，保存请求内容指纹和事务完成响应。写事务使用请求键 advisory lock、build行锁、显式版本校验，选价复用ETL锁。幂等结果与业务变更一起提交；失败回滚两者。此表不是完整审批审计，M10另行实现。
+
+总价由读取快照Decimal计算，不存可被客户端覆盖的总价。quantity变化保留快照；替换不同商品取新快照。软归档不会删除条目/报价/幂等记录。M05将增加认证字段与完整ACL，并默认关闭Demo，不自动迁移归属。
+
 
 ---
 
 <!-- 源文件：docs/04_API.md -->
 
-# 04｜REST API 与 SSE 事件契约（M03 实现与后续设计）
+# 04｜REST API 与 SSE 事件契约（M03/M04 实现与后续设计）
 
 > 2026-10-13 修订：本章须与 [实施计划修订与业务契约](11_PLAN_REVISION.md) 一起使用；冲突处以修订条款为准。执行顺序与原阶段编号不同，见修订第 8 节。
 
-> M00 健康检查及 M03 公共目录已实现；M04 及后续接口仍为设计。版本前缀 `/api/v1`，当前响应契约见 backend/app/catalog_schemas.py 和 /docs。
+> M00 健康检查、M03 公共目录及 M04 手动装机已实现；M05 及后续仍为设计。版本前缀 `/api/v1`，当前响应契约见 backend/app/catalog_schemas.py 和 /docs。
 
 ## 1. 通用规范
 - API：`/api/v1`；JSON 使用 snake_case（前端按类型生成）；分页 `page/page_size`，总数 `total`；错误均返回明确 `code/message/request_id/details`（用户不应看到内部 traceback）。
@@ -848,6 +881,29 @@ data: {"request_id":"abc"}
 | GET | /ready | 数据库 SELECT 1 成功为 200，`{"status":"ready","database":"connected"}`；未配置或数据库错误为 503，`{"status":"unavailable"}` |
 
 以上为工程探测接口，其余业务接口仍是设计稿。探测失败不向客户端返回连接参数或异常细节。
+
+## M04 已实现契约（优先于上文方案示例）
+
+- 本地 Demo 开关 `DEMO_ENABLED`，Settings 默认关闭，开发 .env.example 显式开启。仅允许 loopback 请求、受限 Host/Origin，拒绝跨站请求；关闭后所有装机接口返回401。没有实现登录或多用户认证。
+- tenant/user_account 专用 Demo 行由迁移创建，服务端选择固定身份；输入额外字段被拒绝，客户端不能声明 owner/tenant 或权威金额。
+- GET /api/v1/builds：活动草稿分页 items/total/page/page_size，page=1–10000，page_size=1–100；GET /builds/{id} 返回可见草稿，归档/其他归属返回404。
+- POST /builds：name（1–120，去首尾空白）、purpose（最多500，默认空）、budget_amount（正数两位Decimal或null）、budget_currency（仅USD）。返回201，空草稿版本1。
+- PATCH /builds/{id}：上述完整元信息 + expected_version（正整数）；修改、移除、归档每次将版本递增1。此 PATCH 是完整元信息替换，省略 purpose/budget 会清空它们，前端发送当前完整值。
+- PUT /builds/{id}/items/{slot}：part_id、quantity（严格整数1–99）、expected_price_id（当前所见报价UUID或null，必填）、expected_version。类别必须与八类槽位一致。已停用/不存在商品返回404或422。
+- expected_price_id 只用于验证已确认 Diff 中的源价，没有覆盖服务器金额的能力。报价变化返回409；缺价/未选价商品可存未报价条目。客户端 price_snapshot_usd 等额外字段返回422。
+- 同槽位同商品仅改数量，保留原报价ID/金额/日期，包括原来缺价的快照；换成不同商品才取新的已选价格。不能通过同一商品数量操作偷偷重新选价。
+- DELETE /builds/{id}/items/{slot}：JSON body expected_version；移除条目，空槽位404。DELETE /builds/{id}：同一 body，软归档并保留数据，返回归档后的方案；不再列入活动列表。
+- 所有写请求必须携带 UUID 类型 Idempotency-Key。在同事务内锁请求键、检查版本、写快照与持久化响应。相同键同方法/路径/请求体返回原结果，不重复应用；换请求内容返回409。关闭Demo后不得靠旧键读取结果。
+- 对业务变更使用行锁及版本校验；选价与ETL共用 transaction advisory lock。写事务锁等待及单语句上限5秒，数据库失败回滚并返回503；前端8秒超时后可用同一键核对/重试。
+- 返回 items 中的 slot/part_id/part_name/quantity/part_price_id/price_snapshot_usd/currency/source_name/dataset_updated_at/subtotal_usd；快照来自数据库NUMERIC、历史日期及具体报价FK，不随以后选价变化。
+- 返回 total_usd（已报价小计字符串）、price_is_complete、build_is_complete、total_is_complete、over_budget、missing_components、unpriced_slots、pending_requirements、checked_rules_status=UNKNOWN。
+- 空方案价格不完整；全部已选条目有价不代表整机完整。必需六类 + 显示与散热要求独立判定。M04 尚无审核规格 override，未选 GPU/COOLER 时保守列为待确认，不从 source_fields.graphics 或包装文字猜测可省略。
+- 只有八类齐全且全部已选条目有快照时，当前模板才称“完整整机历史参考总价”。这仍不代表已验证兼容。
+- 金额为字符串/null，预算和小计均USD。内存 quantity 是套装数量，不乘套装内 modules 字段。
+- 409 的 error.code=VERSION_CONFLICT，401=AUTH_REQUIRED，403=FORBIDDEN，沿用请求ID与脱敏错误。
+- 前端在每次写入前显示修改前/后 Diff 和确认按钮。M04 是手动 HTTP 操作；没有 Agent、提案审批库或 M10 权限/审批恢复机制。
+
+M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接口在M08实现。
 
 
 ---
@@ -1067,17 +1123,19 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 **依赖**：M03。**学习**：关系模型、CRUD、事务、Decimal 合计、乐观锁、前端表单与状态管理。
 
 **实施任务**
-- [ ] 建立 build/build_item；若 M05 未完成可设定明显标识的单用户 demo owner，不要伪装成多租户安全。
-- [ ] 实现创建/获取/修改/删除（归档）装机方案；添加/删除/替换配件。
-- [ ] 选择配件时创建固定历史价快照；后续价格库变化不影响已保存总价。
-- [ ] 缺价项不参与完整报价；区分已报价小计/整机完整总价。
-- [ ] 方案编辑器按 CPU/GPU/主板/内存/硬盘/电源/机箱/散热分类选配。
-- [ ] 预算先只接受 USD；超预算突出提醒但可保存草稿。
-- [ ] 版本不匹配更新返回 409；API/前端/集成测试。
+- [x] 建立 build/build_item；若 M05 未完成可设定明显标识的单用户 demo owner，不要伪装成多租户安全。
+- [x] 实现创建/获取/修改/删除（归档）装机方案；添加/删除/替换配件。
+- [x] 选择配件时创建固定历史价快照；后续价格库变化不影响已保存总价。
+- [x] 缺价项不参与完整报价；区分已报价小计/整机完整总价。
+- [x] 方案编辑器按 CPU/GPU/主板/内存/硬盘/电源/机箱/散热分类选配。
+- [x] 预算先只接受 USD；超预算突出提醒但可保存草稿。
+- [x] 版本不匹配更新返回 409；API/前端/集成测试。
 
 **练习**：解释“快照价格”与“当前价格”的区别；写出使用 Decimal 的总价单元测试。
 
 **验收门槛**：能创建一套真实数据驱动的装机表；刷新页面后仍可见；总价可溯源；异常/缺价显示正确。
+
+实际验收：[M04 记录](verification/M04.md)。真实CPU/GPU草稿已保存并刷新恢复；完整八类与缺价等边界由隔离PostgreSQL fixtures验证。当前真实目录尚不足完整整机，不自动进入M05。
 
 ## M05｜账号登录、租户与资源隔离
 **依赖**：M04。**学习**：密码哈希、安全 Cookie/JWT、RBAC 与资源级 ACL、IDOR、数据库事务、权限测试。
@@ -1526,7 +1584,7 @@ cd frontend && npm run typecheck && npm run test
 
 # 11｜实施计划修订与业务契约
 
-修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 及后续尚未实施。
+修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 手动装机已验收；M05 及后续尚未实施。
 
 本文件补充并修订原交接计划。与其他文档冲突时，以本文件对应条款为准；实施各阶段时同步更新具体接口、迁移和测试。原始数据及历史 USD 口径不变。
 
@@ -1600,7 +1658,7 @@ cd frontend && npm run typecheck && npm run test
 - 建议执行顺序：M00 → M01 → M02 → M03 → M04 → M05 → M08 → M06 → M07 → M10 → M09 → M11 → M12。
 - M08 提前时只交付规则、规格补充和手动工作台；Agent 工具接入在 M06/M07 完成后、M10 前实施。M10 不依赖 RAG；M11 依赖 M09 和 M10。
 - 编号保持不变。因执行顺序调整，V0.2 发布门槛包含 M05–M08，V0.3 包含 M09–M10；V0.1 和 V1.0 不变。
-- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04–M12 尚未实施。
+- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04 手动装机已验收；M05–M12 尚未实施。
 
 ## 9. 修订对应关系
 
