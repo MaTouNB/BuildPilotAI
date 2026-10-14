@@ -1,13 +1,15 @@
 [project]
 name = "buildpilot-backend"
 version = "0.0.1"
-description = "BuildPilot AI M00 engineering foundation"
+description = "BuildPilot API and historical hardware ETL"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "alembic==1.20.0",
     "fastapi==0.143.0",
     "psycopg[binary]==3.3.6",
     "pydantic==2.14.1",
     "pydantic-settings==2.15.0",
+    "sqlalchemy==2.1.4",
     "uvicorn==0.54.0",
 ]
 
@@ -17,6 +19,7 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["postgres: integration tests against isolated real PostgreSQL schemas"]
 
 [tool.ruff]
 target-version = "py312"
@@ -31,3 +34,6 @@ dev = [
     "pytest==9.1.1",
     "ruff==0.17.0",
 ]
+
+[tool.ruff.lint.isort]
+known-third-party = ["alembic", "sqlalchemy"]

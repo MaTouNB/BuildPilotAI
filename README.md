@@ -1,8 +1,8 @@
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M01 文件 ETL）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M02 数据库入库）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00 工程基座与 M01 文件 ETL 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M02 已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00 工程基座和 M01 文件审计/清洗。** 数据库商品导入、配件 API 和装机功能尚未实现；按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** 配件 API 和装机功能尚未实现；按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -87,6 +87,53 @@ UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.clean --
 - 重跑只替换本工具拥有且无外来文件的输出目录。不要同时向同一目录运行多个清洗进程。
 
 实际结果与限制：[M01 验收记录](docs/verification/M01.md)。讲解与练习：[M01 学习笔记](docs/learning-notes/M01.md)。
+
+## M02 PostgreSQL 入库
+
+SQLAlchemy 2.1.4 / Alembic 1.20.0 已锁定。迁移先建六张业务表及 import_attempt 审计表；未审核记录保留在 raw_import_row.normalized_data 和 part_price staging，part_id 为 null，不自动创建规范 SKU。
+
+```bash
+make setup
+make db-up
+make db-migrate
+make check        # 非数据库测试、静态检查、前端测试及构建
+make check-db     # 真正 PostgreSQL 测试；随机隔离 schema，不清空业务表
+make check-m02    # 本地全量入库、重跑和溯源验收；需已有 M01 输出及原始 ZIP
+```
+
+在 backend 目录分步验证/应用：
+
+```bash
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.import_db --input ../data/processed/m01 --dry-run
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.import_db --input ../data/processed/m01 --apply
+```
+
+`--dry-run` 不连接数据库，验证分区、原行哈希、金额及审核文件。`--apply` 必须在迁移后运行；相同输入/pipeline/审核文件重跑直接返回 already_imported。导出文件内容改变但 pipeline 未升级时拒绝静默覆盖。
+
+### 显式审核身份与选价
+
+审核文件须由本地操作者准备，存放在被忽略的 data/reviews/。结构如下；占位符须替换为实际值：
+
+```json
+{
+  "input_sha256": "<原始 ZIP 的 SHA-256>",
+  "entries": [{
+    "source_record_key": "<M01 导出中的源记录键>",
+    "part_id": "<自行确定并长期保留的 UUID>",
+    "reviewed_by": "<本地审核者>",
+    "reason": "<身份核对和选价依据>",
+    "select_price": false
+  }]
+}
+```
+
+用同一份 M01 输出配合 `--review-map ../data/reviews/approved.json --apply` 可补充审核，无需重新生成源数据。select_price=false 只确认身份；true 明确选定该行合法非空历史价。同一商品只能选一个当前价；旧价金额不改，替换过程在 import_attempt 留下原/新报价 ID、审核文件与时间。
+
+同名不同规格不能合到同一个 UUID；新数据版本不按名字自动延续身份。只对同一输入中的相同源记录键复用此前的审核映射；跨输入版本需新的显式映射。当前仅本地 CLI 操作，不宣称已实现登录管理员权限或签名审核。
+
+实际数据目前 **0 个已审核规范商品**，全部先入 staging；这不是导入失败。M03 展示规范目录前需要审核少量可靠样例。合成 fixtures 已验证缺价商品存在但不可报价、冲突价经显式选择后可溯源，以及旧报价金额不被后续选价修改。
+
+[数据库 ER 与实现说明](docs/03_DATABASE.md) · [M02 验收记录](docs/verification/M02.md) · [M02 学习笔记](docs/learning-notes/M02.md)
 
 ## 一句话目标
 

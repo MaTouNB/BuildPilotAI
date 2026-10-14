@@ -47,16 +47,18 @@
 **依赖**：M01。**学习**：数据库约束、事务、ORM、迁移、UPSERT、索引、幂等、Decimal/NUMERIC 与 JSONB。
 
 **实施任务**
-- [ ] Alembic 迁移创建 import_batch/raw_import_row/hardware_part/part_source_map/part_price/data_quality_issue。
-- [ ] 编写数据库导入 CLI：读取 M01 输出，分批入库，处理错误批次事务和日志。
-- [ ] 缺价写 NULL，不能 0；价格冲突入质量表，不擅自取均价/最低价。
-- [ ] 重复导入同一批数据实现幂等；新批数据需要按版本记录。
-- [ ] 建立类型、名称、价格筛选索引；报价可追踪到原始行。
-- [ ] Docker 环境实际跑一次完整导入，输出数据库记录和质量统计。
+- [x] Alembic 迁移创建 import_batch/raw_import_row/hardware_part/part_source_map/part_price/data_quality_issue。
+- [x] 编写数据库导入 CLI：读取 M01 输出，分批入库，处理错误批次事务和日志。
+- [x] 缺价写 NULL，不能 0；价格冲突入质量表，不擅自取均价/最低价。
+- [x] 重复导入同一批数据实现幂等；新批数据需要按版本记录。
+- [x] 建立类型、名称、价格筛选索引；报价可追踪到原始行。
+- [x] Docker 环境实际跑一次完整导入，输出数据库记录和质量统计。
 
 **练习**：用 SQL 统计 8 类有价商品数；对比 ORM 查询与 SQL；回滚一个测试事务。
 
 **验收门槛**：数据库一致；重跑数据不成倍增长；缺价商品存在但不可报价；能根据 part_id 找到源 CSV 原行。
+
+实际验收：见 [M02 记录](verification/M02.md)。未审核真实源记录先入 staging，规范 SKU 不自动生成；目录与选价路径已用真实 PostgreSQL 合成 fixtures 验证。
 
 ## M03｜硬件目录 REST API 与查询前端
 **依赖**：M02。**学习**：FastAPI Depends/Pydantic、查询参数、分页、React Query、组件、类型安全。
