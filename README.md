@@ -1,8 +1,8 @@
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M03 硬件目录）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M04 手动装机）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M02 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M04 已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；装机功能尚未实现。按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，登录/AI尚未实现。按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -24,7 +24,7 @@ make dev     # 同时启动前后端；Ctrl+C 停止两者
 - OpenAPI：http://127.0.0.1:8000/docs
 - 数据库：127.0.0.1:5433；密码只在本地 .env，脚本随机生成且不显示。
 
-前端通过 Vite 同源代理访问 /health、/ready、/api，不需要开放跨域。只绑定 loopback，当前是单用户 Demo，尚未启用认证或业务 CRUD。
+前端通过 Vite 同源代理访问 /health、/ready、/api，不需要开放跨域。只绑定 loopback，当前是单用户 Demo，尚未启用认证，M04 业务 CRUD 只在本地 Demo 中开放。
 
 ### 测试与检查
 
@@ -151,9 +151,32 @@ make check-db
 
 **真实目录当前有2个已审核演示商品**：用户已批准 AMD Ryzen 7 9800X3D（USD 451.50）和 MSI GeForce RTX 3060 Ventus 2X 12G（USD 299.97）的独立身份及源价，已应用并验证重跑幂等。其余源记录仍待审；新环境未应用本地审核文件时会显示空目录及原因。原始数据、审核文件和清洗输出不提交 GitHub。
 
-接口/UI、自动测试和真实 CPU/GPU 搜索/详情验收通过。没有实现登录、装机 CRUD 或 AI。
+接口/UI、自动测试和真实 CPU/GPU 搜索/详情验收通过。M03仅提供目录；M04写操作见下节，登录与AI尚未实现。
 
 [M03 验收与限制](docs/verification/M03.md) · [M03 学习笔记](docs/learning-notes/M03.md) · [当前 API 契约](docs/04_API.md)
+
+## M04 手动装机工作台
+
+```bash
+make setup
+make db-up
+make db-migrate
+make dev
+make check
+make check-db
+```
+
+已有 .env 时，显式添加 `DEMO_ENABLED=true` 并重启后端；setup保留已有配置。Settings默认关闭Demo，开发.env.example显式开启。当前已为此本地环境启用。关闭后装机接口返回401；公共目录仍可读。
+
+打开5173的“装机工作台”，创建草稿、设置USD预算、按八类搜索选配、预览修改前/后Diff再确认。修改数量保持旧价格快照；换不同商品取当前已选价。取消不写入；服务器版本/选价变化返回409并要求重新核对。归档从活动列表移除，数据保留。
+
+方案、条目和快照保存在PostgreSQL；页面刷新恢复选中的方案。导航偏好只记在浏览器localStorage。总价始终为已报价小计，仅组件与价格均完整才显示完整整机历史参考总价；兼容规则尚未执行，状态UNKNOWN。
+
+本地演示草稿含已批准CPU/GPU各1件：USD751.47历史小计，预算USD700.00，显示超预算、缺组件及散热待确认。当前实际目录只有两条审核商品，所以不能伪称已组出完整整机。完整八类、缺价、并发/幂等场景由隔离PostgreSQL测试验证。
+
+Demo只允许本地访问，并检查Host/Origin、拒绝跨站请求；所有本地操作者共享专用Demo身份，不能当作正式认证或多用户权限隔离。M05另行实现登录。不要用此开发模式发布到公网。
+
+[M04 验收记录](docs/verification/M04.md) · [M04 学习笔记](docs/learning-notes/M04.md) · [M04 API 契约](docs/04_API.md)
 
 ## 一句话目标
 

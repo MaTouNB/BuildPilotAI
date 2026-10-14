@@ -14,3 +14,5 @@ class Settings(BaseSettings):
     postgres_db: str = "buildpilot"
     postgres_user: str = "buildpilot"
     postgres_password: SecretStr | None = None
+
+    demo_enabled: bool = False

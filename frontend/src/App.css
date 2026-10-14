@@ -72,3 +72,23 @@ input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px 
 .environment-main { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; padding: 64px 0; }
 .environment-embedded .environment-main { grid-template-columns: 1fr; }
 @media (max-width: 760px) { .environment-main { grid-template-columns: 1fr; gap: 24px; padding: 40px 0; } }
+.build-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px; }
+.build-editor { border: 1px solid #dce2ec; border-radius: 16px; background: white; padding: 24px; min-width: 0; overflow-wrap: anywhere; }
+.build-summary { background: #f4f6fa; padding: 20px; border-radius: 12px; margin-bottom: 24px; line-height: 1.7; }
+.build-summary > strong { font-size: 30px; }
+.build-summary h3 { margin-top: 0; }
+.build-list, .build-slots, .picker-list { list-style: none; padding: 0; }
+.build-list li { margin: 12px 0; }
+.build-list .ant-btn { width: 100%; height: auto; white-space: normal; overflow-wrap: anywhere; }
+.build-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.build-slots li, .picker-list li { border: 1px solid #dce2ec; border-radius: 10px; padding: 16px; }
+.build-slots h4 { margin: 0; }
+.build-slots small, .picker-list small { display: block; color: #526580; line-height: 1.8; margin-bottom: 12px; }
+.build-meta, .build-create, .slot-editor form { display: grid; gap: 12px; margin: 16px 0; }
+.build-editor label, .build-create label { display: grid; gap: 8px; font-size: 14px; }
+.build-editor input, .build-editor select, .build-create input { width: 100%; padding: 10px; border: 1px solid #a8b5c6; border-radius: 6px; font: inherit; background: white; min-width: 0; }
+.slot-editor { border-top: 1px solid #dce2ec; margin-top: 32px; padding-top: 16px; }
+.picker-list li { margin: 12px 0; }
+.diff { overflow-wrap: anywhere; line-height: 1.8; }
+@media (max-width: 900px) { .build-layout { grid-template-columns: 220px minmax(0, 1fr); } .build-slots { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .build-layout { grid-template-columns: 1fr; } .build-editor { padding: 20px; } nav { flex-wrap: wrap; } }
