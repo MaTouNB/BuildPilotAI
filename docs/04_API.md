@@ -1,8 +1,8 @@
-# 04｜REST API 与 SSE 事件契约（设计稿）
+# 04｜REST API 与 SSE 事件契约（M03 实现与后续设计）
 
 > 2026-10-13 修订：本章须与 [实施计划修订与业务契约](11_PLAN_REVISION.md) 一起使用；冲突处以修订条款为准。执行顺序与原阶段编号不同，见修订第 8 节。
 
-> 此文档是**拟实现的接口契约**，不是已经运行的服务。版本前缀 `/api/v1`，请求响应字段以 Pydantic 模型/OpenAPI 为准，具体实现时同步更新本文件。
+> M00 健康检查及 M03 公共目录已实现；M04 及后续接口仍为设计。版本前缀 `/api/v1`，当前响应契约见 backend/app/catalog_schemas.py 和 /docs。
 
 ## 1. 通用规范
 - API：`/api/v1`；JSON 使用 snake_case（前端按类型生成）；分页 `page/page_size`，总数 `total`；错误均返回明确 `code/message/request_id/details`（用户不应看到内部 traceback）。
@@ -17,31 +17,32 @@
 |---|---|---|
 | GET | `/health` | 存活健康检查；不暴露凭证或数据库敏感信息 |
 | GET | `/api/v1/catalog/categories` | 可选硬件类别 |
-| GET | `/api/v1/parts` | `q,category,has_price,min_price_usd,max_price_usd,sort,page,page_size` |
+| GET | `/api/v1/parts` | `q,category,has_price,quotable,min_price_usd,max_price_usd,sort,page,page_size` |
 | GET | `/api/v1/parts/{id}` | 商品、标准规格、价格、溯源和可信度 |
 | GET | `/api/v1/parts/{id}/prices` | 若有多个来源候选价格，返回冲突状态和历史快照 |
 | GET | `/api/v1/data-sources` | 当前数据集元数据及价格免责声明 |
 
-### 商品详情示例
-```json
-{
-  "id": "example-part-uuid",
-  "category": "CPU",
-  "name": "Example CPU Model",
-  "specifications": {"core_count": 8, "tdp_w": 120},
-  "price_usd": "451.50",
-  "price_metadata": {
-    "currency": "USD",
-    "price_kind": "historical_reference",
-    "source": "docyx/pc-part-dataset",
-    "dataset_updated_at": "2025-07-23",
-    "source_observed_at": null
-  },
-  "quality_status": "PARTIAL",
-  "source_traceable": true
-}
-```
-上面 UUID/配件数据为**响应结构示例**；不是对某条原始 SKU 的报价承诺。
+### M03 当前契约
+
+- 只查询 is_active 的已审核规范目录。staging 源行不能用源 UUID 当作商品 ID 查询。
+- 分类：CPU/GPU/MOTHERBOARD/MEMORY/STORAGE/PSU/CASE/COOLER。分类响应为 items（id/name/count）。
+- q 最长120字符，大小写不敏感的字面包含查询；SQL 参数绑定，% 和 _ 不作为通配符。
+- has_price 表示存在至少一个非空合法历史价；quotable 表示存在显式选定报价。
+- min/max_price_usd 为正数、最多两位小数，最多12位数字；只筛选**已选报价**。未选价/缺价商品不进入金额范围结果。
+- sort 只接受 name/price_asc/price_desc；价格缺失排最后，商品 UUID 作为稳定排序尾键。
+- page 为1–10000，page_size 为1–100（默认20）。列表和价格历史返回 items/total/page/page_size；越过末页返回空 items。
+- 商品公共字段：id/category/name/quality_status/has_price/is_quotable/quote_status/selected_price_id/price_usd/price_metadata。
+- quote_status 为 SELECTED/MISSING/UNSELECTED/CONFLICT_REVIEW；未选报价的 price_usd、price_metadata、selected_price_id 为 null，不自动取最低或平均价。
+- price_metadata 与历史价格记录字段相同：id、price_usd（字符串或 null）、currency、price_kind、dataset_updated_at、observed_at、source_name、quote_status、is_quotable、source_row_id。observed_at 未知为 null。
+- `/parts/{id}/prices` 分页提供全部价格候选（含冲突及未选价），当前选价和历史金额不被查询修改。
+- 详情增加 specifications、sources、issues、source_count、evidence_limit；specifications 保留 source_fields，未知字段为 null。sources 含原始 raw_data、输入 hash、原行 hash、文件和物理/逻辑行号、来源 URL/数据集日期。
+- 详情按稳定 ID 最多展示100条源映射及这批源行的100条未解决质量提示；source_count 是完整映射数，不宣称提示覆盖全部历史。
+- data-sources 返回 reviewed_parts、最近最多100个成功批次 items 及 limit。row_count 是批次源记录数；跨 pipeline 不能当作去重 SKU 数。
+- 不返回本地审核者、理由或完整审核文件。此阶段是公共只读目录，不是登录后的私人数据接口。
+- 无此规范商品/不活跃商品为404；非法 UUID/参数为422；数据库不可用为503。error 对象为 code/message/request_id/details，并返回 X-Request-ID；验证错误不回显原始输入/SQL/凭据。
+- `/health`、`/ready` 沿用 M00 返回结构。
+
+当前真实数据：66,778条源记录已入库，规范目录为2；两条 CPU/GPU 样例已获用户明确批准并应用，详见 M03 验收记录。合成测试使用独立 PostgreSQL schema，不混入本地业务目录。
 
 ## 3. 认证与会话（M05）
 | 方法 | 路径 | 描述 |

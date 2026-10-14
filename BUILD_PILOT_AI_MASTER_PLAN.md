@@ -1,17 +1,17 @@
-# BuildPilot AI — 完整项目实施手册（M02 修订版）
+# BuildPilot AI — 完整项目实施手册（M03 修订版）
 
-2026-10-14：M00–M02 已实现；其余阶段为设计稿。业务规则见 docs/11_PLAN_REVISION.md，验收见 docs/verification/。
+2026-10-14：M00–M03 已验收；后续为设计稿。
 
 
 ---
 
 <!-- 源文件：README.md -->
 
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M02 数据库入库）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M03 硬件目录）
 
 > 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M02 已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** 配件 API 和装机功能尚未实现；按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；装机功能尚未实现。按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -70,7 +70,7 @@ GitHub Actions 已执行并通过前后端质量检查和真实数据库 smoke�
 
 ## M01 数据审计与文件清洗
 
-M01 不导入数据库，不调用模型，新增代码仅使用 Python 标准库。前端仍是 M00 状态页。
+M01 不导入数据库，不调用模型，新增代码仅使用 Python 标准库。当前默认页面为 M03 目录，环境状态可切换查看。
 
 在项目根目录运行全量验收：
 
@@ -140,9 +140,29 @@ UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.import_d
 
 同名不同规格不能合到同一个 UUID；新数据版本不按名字自动延续身份。只对同一输入中的相同源记录键复用此前的审核映射；跨输入版本需新的显式映射。当前仅本地 CLI 操作，不宣称已实现登录管理员权限或签名审核。
 
-实际数据目前 **0 个已审核规范商品**，全部先入 staging；这不是导入失败。M03 展示规范目录前需要审核少量可靠样例。合成 fixtures 已验证缺价商品存在但不可报价、冲突价经显式选择后可溯源，以及旧报价金额不被后续选价修改。
+M02 初次导入时规范目录为0；M03 经用户明确批准后，当前有 **2 个已审核规范商品**（CPU/GPU各1个），其余保留 staging。合成 fixtures 已验证缺价商品存在但不可报价、冲突价经显式选择后可溯源，以及旧报价金额不被后续选价修改。
 
 [数据库 ER 与实现说明](docs/03_DATABASE.md) · [M02 验收记录](docs/verification/M02.md) · [M02 学习笔记](docs/learning-notes/M02.md)
+
+## M03 硬件目录
+
+```bash
+make db-up
+make db-migrate
+make dev
+make check
+make check-db
+```
+
+打开 http://127.0.0.1:5173/，使用名称、类别、有价/可报价、已选美元价范围和排序筛选；查看详情中的规范化规格、原始字段、源行及历史候选价。环境状态保留为独立入口。刷新页面重新读取数据库；筛选条件只保留在当前页面状态。
+
+接口前缀 /api/v1；交互式契约见 http://127.0.0.1:8000/docs。价格 JSON 为字符串或 null。所有历史金额旁显示 USD 及数据集最后更新日期，缺价不填零。有价与可报价分别筛选；价格范围只使用显式选价。
+
+**真实目录当前有2个已审核演示商品**：用户已批准 AMD Ryzen 7 9800X3D（USD 451.50）和 MSI GeForce RTX 3060 Ventus 2X 12G（USD 299.97）的独立身份及源价，已应用并验证重跑幂等。其余源记录仍待审；新环境未应用本地审核文件时会显示空目录及原因。原始数据、审核文件和清洗输出不提交 GitHub。
+
+接口/UI、自动测试和真实 CPU/GPU 搜索/详情验收通过。没有实现登录、装机 CRUD 或 AI。
+
+[M03 验收与限制](docs/verification/M03.md) · [M03 学习笔记](docs/learning-notes/M03.md) · [当前 API 契约](docs/04_API.md)
 
 ## 一句话目标
 
@@ -201,7 +221,7 @@ UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.import_d
 
 # Codex 工作规范（必须遵守）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M02 已实现，验收记录见 docs/verification/。后续阶段仅在用户指定后实施。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M02 已验收；M03 已通过真实样例验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
 
 ## 1. 工作模式
 - 每次只实施用户指定的 `Mxx` 阶段。不得主动跨越未完成里程碑，也不得一次“生成整个项目”。
@@ -663,11 +683,11 @@ M01 JSON 内的 import_batch_id 是文件处理指纹；数据库批次使用由
 
 <!-- 源文件：docs/04_API.md -->
 
-# 04｜REST API 与 SSE 事件契约（设计稿）
+# 04｜REST API 与 SSE 事件契约（M03 实现与后续设计）
 
 > 2026-10-13 修订：本章须与 [实施计划修订与业务契约](11_PLAN_REVISION.md) 一起使用；冲突处以修订条款为准。执行顺序与原阶段编号不同，见修订第 8 节。
 
-> 此文档是**拟实现的接口契约**，不是已经运行的服务。版本前缀 `/api/v1`，请求响应字段以 Pydantic 模型/OpenAPI 为准，具体实现时同步更新本文件。
+> M00 健康检查及 M03 公共目录已实现；M04 及后续接口仍为设计。版本前缀 `/api/v1`，当前响应契约见 backend/app/catalog_schemas.py 和 /docs。
 
 ## 1. 通用规范
 - API：`/api/v1`；JSON 使用 snake_case（前端按类型生成）；分页 `page/page_size`，总数 `total`；错误均返回明确 `code/message/request_id/details`（用户不应看到内部 traceback）。
@@ -682,31 +702,32 @@ M01 JSON 内的 import_batch_id 是文件处理指纹；数据库批次使用由
 |---|---|---|
 | GET | `/health` | 存活健康检查；不暴露凭证或数据库敏感信息 |
 | GET | `/api/v1/catalog/categories` | 可选硬件类别 |
-| GET | `/api/v1/parts` | `q,category,has_price,min_price_usd,max_price_usd,sort,page,page_size` |
+| GET | `/api/v1/parts` | `q,category,has_price,quotable,min_price_usd,max_price_usd,sort,page,page_size` |
 | GET | `/api/v1/parts/{id}` | 商品、标准规格、价格、溯源和可信度 |
 | GET | `/api/v1/parts/{id}/prices` | 若有多个来源候选价格，返回冲突状态和历史快照 |
 | GET | `/api/v1/data-sources` | 当前数据集元数据及价格免责声明 |
 
-### 商品详情示例
-```json
-{
-  "id": "example-part-uuid",
-  "category": "CPU",
-  "name": "Example CPU Model",
-  "specifications": {"core_count": 8, "tdp_w": 120},
-  "price_usd": "451.50",
-  "price_metadata": {
-    "currency": "USD",
-    "price_kind": "historical_reference",
-    "source": "docyx/pc-part-dataset",
-    "dataset_updated_at": "2025-07-23",
-    "source_observed_at": null
-  },
-  "quality_status": "PARTIAL",
-  "source_traceable": true
-}
-```
-上面 UUID/配件数据为**响应结构示例**；不是对某条原始 SKU 的报价承诺。
+### M03 当前契约
+
+- 只查询 is_active 的已审核规范目录。staging 源行不能用源 UUID 当作商品 ID 查询。
+- 分类：CPU/GPU/MOTHERBOARD/MEMORY/STORAGE/PSU/CASE/COOLER。分类响应为 items（id/name/count）。
+- q 最长120字符，大小写不敏感的字面包含查询；SQL 参数绑定，% 和 _ 不作为通配符。
+- has_price 表示存在至少一个非空合法历史价；quotable 表示存在显式选定报价。
+- min/max_price_usd 为正数、最多两位小数，最多12位数字；只筛选**已选报价**。未选价/缺价商品不进入金额范围结果。
+- sort 只接受 name/price_asc/price_desc；价格缺失排最后，商品 UUID 作为稳定排序尾键。
+- page 为1–10000，page_size 为1–100（默认20）。列表和价格历史返回 items/total/page/page_size；越过末页返回空 items。
+- 商品公共字段：id/category/name/quality_status/has_price/is_quotable/quote_status/selected_price_id/price_usd/price_metadata。
+- quote_status 为 SELECTED/MISSING/UNSELECTED/CONFLICT_REVIEW；未选报价的 price_usd、price_metadata、selected_price_id 为 null，不自动取最低或平均价。
+- price_metadata 与历史价格记录字段相同：id、price_usd（字符串或 null）、currency、price_kind、dataset_updated_at、observed_at、source_name、quote_status、is_quotable、source_row_id。observed_at 未知为 null。
+- `/parts/{id}/prices` 分页提供全部价格候选（含冲突及未选价），当前选价和历史金额不被查询修改。
+- 详情增加 specifications、sources、issues、source_count、evidence_limit；specifications 保留 source_fields，未知字段为 null。sources 含原始 raw_data、输入 hash、原行 hash、文件和物理/逻辑行号、来源 URL/数据集日期。
+- 详情按稳定 ID 最多展示100条源映射及这批源行的100条未解决质量提示；source_count 是完整映射数，不宣称提示覆盖全部历史。
+- data-sources 返回 reviewed_parts、最近最多100个成功批次 items 及 limit。row_count 是批次源记录数；跨 pipeline 不能当作去重 SKU 数。
+- 不返回本地审核者、理由或完整审核文件。此阶段是公共只读目录，不是登录后的私人数据接口。
+- 无此规范商品/不活跃商品为404；非法 UUID/参数为422；数据库不可用为503。error 对象为 code/message/request_id/details，并返回 X-Request-ID；验证错误不回显原始输入/SQL/凭据。
+- `/health`、`/ready` 沿用 M00 返回结构。
+
+当前真实数据：66,778条源记录已入库，规范目录为2；两条 CPU/GPU 样例已获用户明确批准并应用，详见 M03 验收记录。合成测试使用独立 PostgreSQL schema，不混入本地业务目录。
 
 ## 3. 认证与会话（M05）
 | 方法 | 路径 | 描述 |
@@ -1029,16 +1050,18 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 **依赖**：M02。**学习**：FastAPI Depends/Pydantic、查询参数、分页、React Query、组件、类型安全。
 
 **实施任务**
-- [ ] 提供 `GET /parts`、`GET /parts/{id}`、`GET /categories`、`GET /data-sources`。
-- [ ] 支持按类目/名称/价格可用状态/美元价格范围筛选、稳定排序及分页。
-- [ ] 商品详情展示原始和规范化规格、来源、日期、价格是否缺失。
-- [ ] React 页面实现硬件列表、详情、条件筛选、加载/错误/空状态。
-- [ ] 所有价格旁展示 “USD 历史参考价 / 数据集最后更新 2025-07-23”。
-- [ ] 契约测试、查询安全测试（含 SQL 注入样例）、基础 UI 测试。
+- [x] 提供 `GET /parts`、`GET /parts/{id}`、`GET /categories`、`GET /data-sources`。
+- [x] 支持按类目/名称/价格可用状态/美元价格范围筛选、稳定排序及分页。
+- [x] 商品详情展示原始和规范化规格、来源、日期、价格是否缺失。
+- [x] React 页面实现硬件列表、详情、条件筛选、加载/错误/空状态。
+- [x] 所有价格旁展示 “USD 历史参考价 / 数据集最后更新 2025-07-23”。
+- [x] 契约测试、查询安全测试（含 SQL 注入样例）、基础 UI 测试。
 
 **练习**：解释 URL 参数、HTTP 404/422、React state 与 server state 的区别。
 
 **验收门槛**：从真实导入数据库查询 CPU/GPU；任何页面不显示人民币假价格；无法查询的 SKU 处理有解释。
+
+实际进度：接口与界面、自动测试及真实 CPU/GPU 查询/详情验收通过。两条演示身份及源价已获用户批准并入库，重复应用幂等；不自动进入 M04。见 [M03 记录](verification/M03.md)。
 
 ## M04｜手动装机系统（首个完整业务闭环）
 **依赖**：M03。**学习**：关系模型、CRUD、事务、Decimal 合计、乐观锁、前端表单与状态管理。
@@ -1503,7 +1526,7 @@ cd frontend && npm run typecheck && npm run test
 
 # 11｜实施计划修订与业务契约
 
-修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；业务 API 与后续阶段尚未实施。
+修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 及后续尚未实施。
 
 本文件补充并修订原交接计划。与其他文档冲突时，以本文件对应条款为准；实施各阶段时同步更新具体接口、迁移和测试。原始数据及历史 USD 口径不变。
 
@@ -1577,7 +1600,7 @@ cd frontend && npm run typecheck && npm run test
 - 建议执行顺序：M00 → M01 → M02 → M03 → M04 → M05 → M08 → M06 → M07 → M10 → M09 → M11 → M12。
 - M08 提前时只交付规则、规格补充和手动工作台；Agent 工具接入在 M06/M07 完成后、M10 前实施。M10 不依赖 RAG；M11 依赖 M09 和 M10。
 - 编号保持不变。因执行顺序调整，V0.2 发布门槛包含 M05–M08，V0.3 包含 M09–M10；V0.1 和 V1.0 不变。
-- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03–M12 尚未实施。
+- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04–M12 尚未实施。
 
 ## 9. 修订对应关系
 
@@ -1590,4 +1613,3 @@ cd frontend && npm run typecheck && npm run test
 | 07_TESTING | 本文件每节的边界和故障测试 |
 
 开始任何阶段前，同时阅读本文件和原对应章节。具体依赖版本仍在实现时查官方资料并锁定。
-
