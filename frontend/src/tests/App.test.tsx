@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import App from '../App'
+import App from '../EnvironmentPanel'
 
 function successfulProbe(path: string) {
   return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: path === '/health' ? 'ok' : 'ready' }) })

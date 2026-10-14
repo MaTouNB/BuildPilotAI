@@ -11,3 +11,7 @@ Object.defineProperty(window, 'matchMedia', {
     addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
   })),
 })
+
+// jsdom lacks pseudo-element styles; Ant Design measures scrollbar pseudo styles.
+const computedStyle = window.getComputedStyle.bind(window)
+window.getComputedStyle = element => computedStyle(element)

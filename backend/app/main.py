@@ -1,11 +1,18 @@
 import logging
+from contextlib import asynccontextmanager
+from threading import Lock
 from typing import Literal
+from uuid import uuid4
 
 import psycopg
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy import Engine
+from sqlalchemy.exc import SQLAlchemyError
 
+from app.catalog import router
 from app.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -17,9 +24,69 @@ class Health(BaseModel):
     milestone: str = "M00"
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, *, engine: Engine | None = None) -> FastAPI:
     config = settings if settings is not None else Settings()
-    application = FastAPI(title="BuildPilot AI", version="0.0.1")
+
+    @asynccontextmanager
+    async def lifespan(application):
+        yield
+        if engine is None and application.state.catalog_engine is not None:
+            application.state.catalog_engine.dispose()
+
+    application = FastAPI(title="BuildPilot AI", version="0.3.0", lifespan=lifespan)
+    application.state.engine_lock = Lock()
+    application.state.settings = config
+    application.state.catalog_engine = engine
+    application.include_router(router)
+
+    @application.middleware("http")
+    async def request_id(request: Request, call_next):
+        request.state.request_id = str(uuid4())
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request.state.request_id
+        return response
+
+    def error(request, status, code, message, details=None):
+        return JSONResponse(
+            status_code=status,
+            content={
+                "error": {
+                    "code": code,
+                    "message": message,
+                    "request_id": request.state.request_id,
+                    "details": details,
+                }
+            },
+        )
+
+    @application.exception_handler(HTTPException)
+    async def http_error(request, exc):
+        return error(
+            request,
+            exc.status_code,
+            "NOT_FOUND"
+            if exc.status_code == 404
+            else "DATABASE_UNAVAILABLE"
+            if exc.status_code == 503
+            else "INVALID_QUERY",
+            str(exc.detail),
+        )
+
+    @application.exception_handler(RequestValidationError)
+    async def invalid(request, exc):
+        # Exclude input/context: they may contain confidential input or non-JSON objects.
+        return error(
+            request,
+            422,
+            "INVALID_QUERY",
+            "请求参数不合法",
+            [{"loc": list(item["loc"]), "type": item["type"]} for item in exc.errors()],
+        )
+
+    @application.exception_handler(SQLAlchemyError)
+    async def database_error(request, exc):
+        logger.warning("Catalog database unavailable")
+        return error(request, 503, "DATABASE_UNAVAILABLE", "目录数据库暂时不可用，请稍后重试")
 
     @application.get("/", response_model=Health)
     @application.get("/health", response_model=Health)

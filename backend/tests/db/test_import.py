@@ -1,20 +1,15 @@
 import csv
 import hashlib
 import io
-import os
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
-from pathlib import Path
 from uuid import UUID, uuid4
 from zipfile import ZipFile
 
 import pytest
-from alembic import command
-from alembic.config import Config
-from sqlalchemy import insert, select, text, update
+from sqlalchemy import insert, select, update
 from sqlalchemy.exc import IntegrityError
 
-from app.db import make_engine
 from app.etl.artifacts import load_artifacts
 from app.etl.importer import ReviewManifest, apply_artifacts, database_counts
 from app.etl.pipeline import run_pipeline, write_artifacts
@@ -28,30 +23,7 @@ from app.models import (
 )
 
 pytestmark = pytest.mark.postgres
-BACKEND = Path(__file__).resolve().parents[2]
 PART = UUID("8f945b54-e930-4afb-a05f-b55e401f4bcc")
-
-
-@pytest.fixture
-def database():
-    if os.environ.get("BUILDPILOT_TEST_POSTGRES") != "1":
-        pytest.skip("Real PostgreSQL tests require BUILDPILOT_TEST_POSTGRES=1")
-    schema = "bptest_" + uuid4().hex
-    admin = make_engine()
-    with admin.begin() as connection:
-        connection.execute(text(f'CREATE SCHEMA "{schema}"'))
-    engine = make_engine(schema=schema)
-    try:
-        with engine.begin() as connection:
-            config = Config(str(BACKEND / "alembic.ini"))
-            config.attributes["connection"] = connection
-            command.upgrade(config, "head")
-        yield engine
-    finally:
-        engine.dispose()
-        with admin.begin() as connection:
-            connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
-        admin.dispose()
 
 
 def export_fixture(tmp_path, values=None):
