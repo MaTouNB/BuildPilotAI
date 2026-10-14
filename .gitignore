@@ -20,3 +20,6 @@ coverage/
 *.tsbuildinfo
 playwright-report/
 test-results/
+
+# Local identity reviews may identify an operator; never publish automatically.
+data/reviews/

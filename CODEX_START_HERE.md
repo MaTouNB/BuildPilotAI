@@ -1,6 +1,6 @@
 # 复制下面这段话作为交给 Codex 的第一条任务
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00 工程基座已实现，验收记录见 docs/verification/M00.md。后续阶段仅在用户指定后实施。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M02 已实现，验收记录见 docs/verification/。后续阶段仅在用户指定后实施。
 
 你现在要负责开发 BuildPilot AI。请先完整阅读 `README.md`、`AGENTS.md`、`docs/00_PRODUCT.md`、`docs/01_DATA_ETL.md`、`docs/02_ARCHITECTURE.md`、`docs/06_ROADMAP.md`。
 

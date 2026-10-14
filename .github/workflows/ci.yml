@@ -29,7 +29,7 @@ jobs:
         run: |
           uv run --locked ruff check --config pyproject.toml . ../scripts
           uv run --locked ruff format --check --config pyproject.toml . ../scripts
-          uv run --locked pytest -q
+          uv run --locked pytest -q -m "not postgres"
       - name: Frontend quality
         working-directory: frontend
         run: |
@@ -39,6 +39,14 @@ jobs:
           npm run build
       - name: Start PostgreSQL
         run: docker compose --env-file .env -f infra/docker-compose.yml up -d --wait
+      - name: Migrate and verify PostgreSQL imports
+        working-directory: backend
+        env:
+          BUILDPILOT_TEST_POSTGRES: "1"
+        run: |
+          uv run --locked alembic upgrade head
+          uv run --locked alembic check
+          uv run --locked pytest -q -m postgres
       - name: Real database smoke check
         run: python3 scripts/smoke.py
       - name: Stop PostgreSQL without deleting data

@@ -1,17 +1,17 @@
-# BuildPilot AI — 完整项目实施手册（M01 修订版）
+# BuildPilot AI — 完整项目实施手册（M02 修订版）
 
-2026-10-13：M00 与 M01 已实现；其余阶段为设计稿。业务规则见 docs/11_PLAN_REVISION.md，验收见 docs/verification/。
+2026-10-14：M00–M02 已实现；其余阶段为设计稿。业务规则见 docs/11_PLAN_REVISION.md，验收见 docs/verification/。
 
 
 ---
 
 <!-- 源文件：README.md -->
 
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M01 文件 ETL）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M02 数据库入库）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00 工程基座与 M01 文件 ETL 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M02 已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00 工程基座和 M01 文件审计/清洗。** 数据库商品导入、配件 API 和装机功能尚未实现；按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** 配件 API 和装机功能尚未实现；按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -97,6 +97,53 @@ UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.clean --
 
 实际结果与限制：[M01 验收记录](docs/verification/M01.md)。讲解与练习：[M01 学习笔记](docs/learning-notes/M01.md)。
 
+## M02 PostgreSQL 入库
+
+SQLAlchemy 2.1.4 / Alembic 1.20.0 已锁定。迁移先建六张业务表及 import_attempt 审计表；未审核记录保留在 raw_import_row.normalized_data 和 part_price staging，part_id 为 null，不自动创建规范 SKU。
+
+```bash
+make setup
+make db-up
+make db-migrate
+make check        # 非数据库测试、静态检查、前端测试及构建
+make check-db     # 真正 PostgreSQL 测试；随机隔离 schema，不清空业务表
+make check-m02    # 本地全量入库、重跑和溯源验收；需已有 M01 输出及原始 ZIP
+```
+
+在 backend 目录分步验证/应用：
+
+```bash
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.import_db --input ../data/processed/m01 --dry-run
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.import_db --input ../data/processed/m01 --apply
+```
+
+`--dry-run` 不连接数据库，验证分区、原行哈希、金额及审核文件。`--apply` 必须在迁移后运行；相同输入/pipeline/审核文件重跑直接返回 already_imported。导出文件内容改变但 pipeline 未升级时拒绝静默覆盖。
+
+### 显式审核身份与选价
+
+审核文件须由本地操作者准备，存放在被忽略的 data/reviews/。结构如下；占位符须替换为实际值：
+
+```json
+{
+  "input_sha256": "<原始 ZIP 的 SHA-256>",
+  "entries": [{
+    "source_record_key": "<M01 导出中的源记录键>",
+    "part_id": "<自行确定并长期保留的 UUID>",
+    "reviewed_by": "<本地审核者>",
+    "reason": "<身份核对和选价依据>",
+    "select_price": false
+  }]
+}
+```
+
+用同一份 M01 输出配合 `--review-map ../data/reviews/approved.json --apply` 可补充审核，无需重新生成源数据。select_price=false 只确认身份；true 明确选定该行合法非空历史价。同一商品只能选一个当前价；旧价金额不改，替换过程在 import_attempt 留下原/新报价 ID、审核文件与时间。
+
+同名不同规格不能合到同一个 UUID；新数据版本不按名字自动延续身份。只对同一输入中的相同源记录键复用此前的审核映射；跨输入版本需新的显式映射。当前仅本地 CLI 操作，不宣称已实现登录管理员权限或签名审核。
+
+实际数据目前 **0 个已审核规范商品**，全部先入 staging；这不是导入失败。M03 展示规范目录前需要审核少量可靠样例。合成 fixtures 已验证缺价商品存在但不可报价、冲突价经显式选择后可溯源，以及旧报价金额不被后续选价修改。
+
+[数据库 ER 与实现说明](docs/03_DATABASE.md) · [M02 验收记录](docs/verification/M02.md) · [M02 学习笔记](docs/learning-notes/M02.md)
+
 ## 一句话目标
 
 构建一套 **React + FastAPI + PostgreSQL + LangChain/LangGraph + pgvector** 的电脑 DIY Web 应用，支持配件数据库、历史美元价格、手工装机、确定性兼容检测、RAG 问答、多用户隔离与可审批的 Agent 操作。
@@ -154,7 +201,7 @@ UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.clean --
 
 # Codex 工作规范（必须遵守）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00 工程基座已实现，验收记录见 docs/verification/M00.md。后续阶段仅在用户指定后实施。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M02 已实现，验收记录见 docs/verification/。后续阶段仅在用户指定后实施。
 
 ## 1. 工作模式
 - 每次只实施用户指定的 `Mxx` 阶段。不得主动跨越未完成里程碑，也不得一次“生成整个项目”。
@@ -199,7 +246,7 @@ UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.etl.clean --
 
 # 复制下面这段话作为交给 Codex 的第一条任务
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00 工程基座已实现，验收记录见 docs/verification/M00.md。后续阶段仅在用户指定后实施。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M02 已实现，验收记录见 docs/verification/。后续阶段仅在用户指定后实施。
 
 你现在要负责开发 BuildPilot AI。请先完整阅读 `README.md`、`AGENTS.md`、`docs/00_PRODUCT.md`、`docs/01_DATA_ETL.md`、`docs/02_ARCHITECTURE.md`、`docs/06_ROADMAP.md`。
 
@@ -520,7 +567,7 @@ buildpilot-ai/
 `id`, `source_name`, `source_url`, `dataset_updated_at DATE`, `input_sha256`, `etl_version`, `status`, `started_at`, `finished_at`, `row_count`, `error_count`, `warnings_count`。同一数据集 hash + pipeline version 定义幂等边界。
 
 ### `raw_import_row`
-`id`, `batch_id`, `source_file`, `line_number`, `row_hash`, `raw_data JSONB`, `normalization_status`, `normalized_part_id NULL`。`UNIQUE(batch_id,source_file,line_number)`。
+`id`, `batch_id`, `source_file`, `line_number`, `row_hash`, `raw_data JSONB`, `normalization_status`, `normalized_part_id NULL`。`UNIQUE(batch_id,source_file,row_number)`；row_number 是逻辑记录序号，line_number/end_line_number 保留物理位置。
 
 ### `hardware_part`
 `id`, `category`, `display_name`, `normalized_name`, `specifications JSONB`, `is_active`, `quality_status`, `created_at`, `updated_at`。重要：**不对 display_name 设置 UNIQUE**。
@@ -581,6 +628,35 @@ buildpilot-ai/
 - 清单一旦建立，后续价格更新不改历史条目快照。
 - 版本不一致的写入返回 409，审批并发重复执行只成功一次。
 - 原始 ZIP 来源映射能反查所有报价行。
+
+## M02 实际实现与 ER
+
+未审核源行不创建 hardware_part，raw_import_row.normalized_data 保留规范化候选；part_price.part_id 暂为 NULL，is_quotable=false。合法缺价记录仍有一条 NULL 价格记录；ERROR 只留原行和问题，不生成价格记录。M01 的 normalized_data 是原始处理状态，有效目录归属及选价状态应读取 FK 和 part_price 列。
+
+```mermaid
+erDiagram
+  import_batch ||--o{ raw_import_row : contains
+  import_batch ||--o{ import_attempt : records
+  import_batch ||--o{ part_price : contains
+  import_batch ||--o{ data_quality_issue : contains
+  raw_import_row ||--o| part_price : traces
+  raw_import_row ||--o| part_source_map : maps
+  raw_import_row ||--o{ data_quality_issue : explains
+  hardware_part ||--o{ part_source_map : identifies
+  hardware_part |o--o{ part_price : links
+```
+
+import_batch 用输入 SHA + pipeline_version 唯一标识，并记录全套导出的 artifact_sha256。同一版本的输出内容变动必须升级 pipeline；不同兼容清洗版本可产生新批次及原行/报价处理记录，但已有审核的相同 source_record_key 延续原 part_id。不根据 name/row_hash 自动跨输入版本合并。规格变化需要显式治理，不静默改旧规范实体。
+
+import_attempt 保存每次实际导入/审核尝试、声明的审核者与理由、选价变更（旧/新报价 ID）、状态和 UTC 时间。数据修改在单一事务内提交；异常后回滚，再以独立事务记录 FAILED。已成功批次发生后续审核失败时保留 SUCCEEDED，失败属于具体 attempt。
+
+批次用 PostgreSQL session advisory lock 防止并发重复导入，显式选价用稳定顺序的商品锁与每商品唯一可报价索引。CLI 输入使用 Pydantic 和源字段复核；数据库额外约束 USD、正价、非 NaN、报价所需审核信息及报价原行所属批次。
+
+迁移 m02_001 创建七张表；m02_002 明确拒绝 numeric NaN。按 [PostgreSQL 数值类型文档](https://www.postgresql.org/docs/17/datatype-numeric.html)，NaN 的比较行为需要单独处理，不能只靠大于零检查。金额为 NUMERIC(12,2)，应用仍使用 Decimal。
+
+本轮真实集成测试在随机拥有的 schema 中应用迁移、执行事务并清理，不删除 public 业务表。迁移参考 [Alembic 官方教程](https://alembic.sqlalchemy.org/en/latest/tutorial.html)，事务参考 [SQLAlchemy 官方教程](https://docs.sqlalchemy.org/en/20/tutorial/dbapi_transactions.html)，锁参考 [PostgreSQL 显式锁文档](https://www.postgresql.org/docs/17/explicit-locking.html)。
+
+M01 JSON 内的 import_batch_id 是文件处理指纹；数据库批次使用由输入 SHA/pipeline 确定的 UUID。原 JSON 不重写，数据库归属通过 batch_id 外键表达。
 
 
 ---
@@ -936,16 +1012,18 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 **依赖**：M01。**学习**：数据库约束、事务、ORM、迁移、UPSERT、索引、幂等、Decimal/NUMERIC 与 JSONB。
 
 **实施任务**
-- [ ] Alembic 迁移创建 import_batch/raw_import_row/hardware_part/part_source_map/part_price/data_quality_issue。
-- [ ] 编写数据库导入 CLI：读取 M01 输出，分批入库，处理错误批次事务和日志。
-- [ ] 缺价写 NULL，不能 0；价格冲突入质量表，不擅自取均价/最低价。
-- [ ] 重复导入同一批数据实现幂等；新批数据需要按版本记录。
-- [ ] 建立类型、名称、价格筛选索引；报价可追踪到原始行。
-- [ ] Docker 环境实际跑一次完整导入，输出数据库记录和质量统计。
+- [x] Alembic 迁移创建 import_batch/raw_import_row/hardware_part/part_source_map/part_price/data_quality_issue。
+- [x] 编写数据库导入 CLI：读取 M01 输出，分批入库，处理错误批次事务和日志。
+- [x] 缺价写 NULL，不能 0；价格冲突入质量表，不擅自取均价/最低价。
+- [x] 重复导入同一批数据实现幂等；新批数据需要按版本记录。
+- [x] 建立类型、名称、价格筛选索引；报价可追踪到原始行。
+- [x] Docker 环境实际跑一次完整导入，输出数据库记录和质量统计。
 
 **练习**：用 SQL 统计 8 类有价商品数；对比 ORM 查询与 SQL；回滚一个测试事务。
 
 **验收门槛**：数据库一致；重跑数据不成倍增长；缺价商品存在但不可报价；能根据 part_id 找到源 CSV 原行。
+
+实际验收：见 [M02 记录](verification/M02.md)。未审核真实源记录先入 staging，规范 SKU 不自动生成；目录与选价路径已用真实 PostgreSQL 合成 fixtures 验证。
 
 ## M03｜硬件目录 REST API 与查询前端
 **依赖**：M02。**学习**：FastAPI Depends/Pydantic、查询参数、分页、React Query、组件、类型安全。
@@ -1425,7 +1503,7 @@ cd frontend && npm run typecheck && npm run test
 
 # 11｜实施计划修订与业务契约
 
-修订日期：2026-10-13。状态：设计已修订；M00 工程基座与 M01 文件 ETL 已实现，数据库业务阶段尚未实施。
+修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；业务 API 与后续阶段尚未实施。
 
 本文件补充并修订原交接计划。与其他文档冲突时，以本文件对应条款为准；实施各阶段时同步更新具体接口、迁移和测试。原始数据及历史 USD 口径不变。
 
@@ -1499,7 +1577,7 @@ cd frontend && npm run typecheck && npm run test
 - 建议执行顺序：M00 → M01 → M02 → M03 → M04 → M05 → M08 → M06 → M07 → M10 → M09 → M11 → M12。
 - M08 提前时只交付规则、规格补充和手动工作台；Agent 工具接入在 M06/M07 完成后、M10 前实施。M10 不依赖 RAG；M11 依赖 M09 和 M10。
 - 编号保持不变。因执行顺序调整，V0.2 发布门槛包含 M05–M08，V0.3 包含 M09–M10；V0.1 和 V1.0 不变。
-- 每次只实施用户指定阶段。M00、M01 已实现，当前进度见 verification/M00.md 和 verification/M01.md；M02–M12 尚未实施。
+- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03–M12 尚未实施。
 
 ## 9. 修订对应关系
 
