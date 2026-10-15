@@ -39,9 +39,11 @@ export default function CatalogAssistant() {
   return <aside className="catalog-assistant" aria-label="历史目录助手"><h2>历史目录助手</h2><Alert type="info" title="Mock 模拟模式 · 不连接外部模型" description="模拟模型解析有限型号，实际查询数据库。每次查询独立，本阶段不保存聊天。只读目录，不能修改装机方案。" />
     <form onSubmit={submit}><label>配件问题<textarea value={question} onChange={event => setQuestion(event.target.value)} maxLength={1000} required rows={3} /></label><Button type="primary" htmlType="submit" disabled={busy || !question.trim()}>查询历史目录</Button>{busy && <Button onClick={() => controller.current?.abort()}>取消查询</Button>}</form>
     {busy && <p role="status">正在通过模拟模型调用目录工具…</p>}{error && <Alert type="error" title={error} />}
-    {result && <div aria-live="polite"><p>{result.answer}</p><p className="panel-note">{result.historical_notice}</p>{result.quotes.map((quote, index) => <article key={`${quote.part_id}:${index}`} className="assistant-quote"><h3>{quote.name}</h3>{quote.price_usd === null ? <p>缺少已选报价，金额未知。</p> : <><strong>USD {quote.price_usd}</strong><p>历史参考价 · 数据集最后更新 {quote.dataset_updated_at}</p><p>来源：{quote.source_name}</p><p>{quote.source_file} · 第 {quote.line_number} 行</p>{quote.source_url && <a href={quote.source_url} target="_blank" rel="noreferrer">查看数据集来源</a>}</>}</article>)}
-      {result.status === 'NEEDS_SELECTION' && <ul>{result.candidates.map(part => <li key={part.id}>{part.name}</li>)}</ul>}
-      <details><summary>查看实际工具调用（{result.tool_calls.length}）</summary>{result.tool_calls.map((call, index) => <div key={`${index}:${call.name}`}><h4>{index + 1}. {call.name} · {call.status} · {call.duration_ms}ms</h4><pre>{JSON.stringify({ parameters: call.arguments, result: call.result }, null, 2)}</pre></div>)}</details>
-    </div>}
+    {result && <QuoteEvidence result={result} />}
   </aside>
 }
+
+export function QuoteEvidence({ result }: { result: ChatResult }) { return <div aria-live="polite"><p>{result.answer}</p><p className="panel-note">{result.historical_notice}</p>{result.quotes.map((quote, index) => <article key={`${quote.part_id}:${index}`} className="assistant-quote"><h3>{quote.name}</h3>{quote.price_usd === null ? <p>缺少已选报价，金额未知。</p> : <><strong>USD {quote.price_usd}</strong><p>历史参考价 · 数据集最后更新 {quote.dataset_updated_at}</p><p>来源：{quote.source_name}</p><p>{quote.source_file} · 第 {quote.line_number} 行</p>{quote.source_url && <a href={quote.source_url} target="_blank" rel="noreferrer">查看数据集来源</a>}</>}</article>)}
+      {result.status === 'NEEDS_SELECTION' && <ul>{result.candidates.map(part => <li key={part.id}>{part.name}</li>)}</ul>}
+      <details><summary>查看实际工具调用（{result.tool_calls.length}）</summary>{result.tool_calls.map((call, index) => <div key={`${index}:${call.name}`}><h4>{index + 1}. {call.name} · {call.status} · {call.duration_ms}ms</h4><pre>{JSON.stringify({ parameters: call.arguments, result: call.result }, null, 2)}</pre></div>)}</details>
+    </div> }

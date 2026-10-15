@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from threading import Lock
@@ -17,6 +18,7 @@ from app.agent.routes import router as agent_router
 from app.auth import router as auth_router
 from app.builds import router as builds_router
 from app.catalog import router
+from app.chat.routes import router as chat_router
 from app.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -34,10 +36,12 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
     @asynccontextmanager
     async def lifespan(application):
         yield
+        if application.state.chat_tasks:
+            await asyncio.gather(*list(application.state.chat_tasks), return_exceptions=True)
         if engine is None and application.state.catalog_engine is not None:
             application.state.catalog_engine.dispose()
 
-    application = FastAPI(title="BuildPilot AI", version="0.6.0", lifespan=lifespan)
+    application = FastAPI(title="BuildPilot AI", version="0.7.0", lifespan=lifespan)
     application.state.engine_lock = Lock()
     application.state.settings = config
     application.state.catalog_engine = engine
@@ -46,11 +50,17 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
     application.include_router(auth_router)
     application.include_router(agent_router)
     configure_agent(application)
+    application.include_router(chat_router)
+    application.state.chat_tasks = set()
 
     @application.middleware("http")
     async def request_id(request: Request, call_next):
         request.state.request_id = str(uuid4())
-        if request.url.path == "/api/v1/ai/chat":
+        if request.url.path.startswith("/api/v1/ai/") and request.method in {
+            "POST",
+            "DELETE",
+            "PATCH",
+        }:
             # Bound the raw JSON body before parsing, including chunked requests.
             body = bytearray()
             async for chunk in request.stream():

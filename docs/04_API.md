@@ -227,3 +227,23 @@ M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接�
 错误：401 未登录、403 CSRF/来源校验拒绝、413 原始请求过大、422 参数/工具白名单或次数/上下文限制、429 频率/并发满（Retry-After）、502 模拟模型或工具执行失败、504 运行/单步超时。异常详情、模型原文、凭据和数据库地址不输出。
 
 工具输入：search_parts(keywords≤120, category 可选枚举, priced_only 严格 bool, limit 严格整数1..5)；get_part/get_reference_price(part_id UUID)。只查 active 公共商品，不开放 SQL/文件/网络/私人方案/兼容工具。工具结果可回显到发起者页面，不写聊天日志。多候选不会自动选一个。真实外部 Provider endpoint 适配器不属于本次用户选择的 Mock 交付。
+
+## M07 已实现：私有会话 API
+
+前缀 `/api/v1/ai/sessions`，全部需要登录；写操作需 CSRF。身份和租户取服务端上下文，其他人的标识统一 404。客户端不能指定内部 thread_id、owner 或 tenant。
+
+| 方法/路径（前缀后） | 请求与行为 |
+| --- | --- |
+| POST 空路径 | title（1–120 字）、client_request_id UUID；201，创建幂等 |
+| GET 空路径 | page/page_size，后者最多 30；本人当前租户活动会话 |
+| GET /{sid} | 会话、active_run、message_count；不包含内部线程或身份字段 |
+| GET /{sid}/messages | before UUID、limit 1–50；按时间/运行/序号排序，返回分页历史 |
+| POST /{sid}/messages | message（非空最多 1000 字）、client_request_id UUID；202，重复键同内容复用运行，异内容 409 |
+| GET /{sid}/runs/{rid} | 执行状态；仅 COMPLETED 返回完成结果 |
+| GET /{sid}/runs/{rid}/events | after_event_id；SSE 最多 15 秒，事件带 run_id、递增 ID |
+| POST /{sid}/runs/{rid}/cancel | 幂等取消；禁止迟到答案提交 |
+| DELETE /{sid} | expected_version 正整数；过期 409，成功标记删除并启动内容清理 |
+
+事件类型为 run.started、tool.started、tool.completed、message.delta、run.completed/run.failed。分片来自完成后保存的答案；断线 GET 状态/历史，不自动重复发送。运行截止 60 秒，崩溃运行在无工作锁时明确失败。每用户每租户最多 30 活动会话、每会话 100 运行；数据库准入全局 4 / 租户 2 / 用户 1 活动运行。单会话一个活动运行。所有 AI 写入请求体最多 8 KiB。
+
+原 M06 无状态 `/api/v1/ai/chat` 保留兼容；页面改用 M07 会话界面。删除保留及维护策略见 README。

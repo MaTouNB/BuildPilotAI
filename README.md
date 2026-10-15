@@ -1,8 +1,8 @@
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M06 Mock 只读目录助手）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M07 Mock 持久化会话）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M06（M06 为 Mock）、M08 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M07（M06/M07 为 Mock）、M08 规则与工作台已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，M06 Mock 只读目录助手已实现；尚未接真实模型。按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，M06 Mock 只读目录助手及 M07 持久化会话已实现；尚未接真实模型。按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -296,3 +296,29 @@ make check-db
 只开放 search_parts/get_part/get_reference_price。只提交本轮问题，不保存聊天；无多轮、RAG、兼容工具或修改装机能力。价格与来源由后端真实工具结果提供；缺价不填零，没有工具证据不报价。取消/失败不自动重试，切换身份清空旧结果。输入、超时、工具次数、上下文/输出和单进程频率/并发均受限；生产多实例配额尚未实现。
 
 实际结果：后端 149 项、前端 34 项通过，浏览器查询得到 USD 299.97 / 数据集 2025-07-23 / 原始第 2 行；[M06 验收](docs/verification/M06.md)、[学习笔记](docs/learning-notes/M06.md)。下一阶段建议 M07，本次不自动执行。
+
+## M07 持久化会话（Mock）
+
+登录后可创建、切换会话、查看历史、取消执行及预览后删除会话。服务重启后从 PostgreSQL 恢复历史与有限上下文；会话按服务端用户和租户隔离。Mock 仅支持有限目录问句与上一件商品追问，不代表真实模型能力。
+
+```bash
+make setup
+make db-up
+make db-migrate
+make dev
+make check
+make check-db
+```
+
+SSE 断线通过状态与历史查询恢复，不自动重发问题；答案分片来自完成后持久化的答案，并非实时模型 token。每会话最多 100 次运行、每用户每租户最多 30 个活动会话。上下文保留最近六条问题及上一件有完成报价证据的商品。
+
+删除需确认 Diff 和版本；删除标记立即阻止访问，后台清理消息、执行、事件和 checkpoint。失败保留 PENDING，可重试：
+
+```bash
+cd backend
+uv run --locked python -m app.chat.cleanup
+```
+
+该命令只清理已删除会话，不清理活动历史；单项失败不阻塞其他项。最小删除记录在删除满七天且内容清理完成后，随下一次清理任务移除。尚无内置周期调度，需要运维执行重试任务。
+
+验收：[M07 记录](docs/verification/M07.md)；学习：[M07 笔记](docs/learning-notes/M07.md)。下一阶段建议补齐 M08 Agent 兼容性工具接入，未自动实施。

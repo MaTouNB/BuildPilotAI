@@ -133,16 +133,18 @@
 **依赖**：M06。**学习**：LangGraph Thread、PostgresSaver、短期记忆、状态复原、流式 SSE、取消与错误恢复。
 
 **实施任务**
-- [ ] 建 chat_session/消息索引，API 创建/列表/历史/删除；内部 thread_id 由服务器生成。
-- [ ] 接 LangGraph 持久化 checkpointer；同 session 连续会话，不同 session 不串台。
-- [ ] SSE 提供 message.delta、tool.started/completed、run.completed/failed；断线不重复写变更。
-- [ ] 重启后可继续会话；会话历史/工具轨迹可定位。
-- [ ] 同租户 user A 与 user B、跨租户、篡改 session_id 进行安全回归。
-- [ ] 会话截断/摘要策略；短期不做无限长期记忆。
+- [x] 建 chat_session/消息索引，API 创建/列表/历史/删除；内部 thread_id 由服务器生成。
+- [x] 接 LangGraph 持久化 checkpointer；同 session 连续会话，不同 session 不串台。
+- [x] SSE 提供 message.delta、tool.started/completed、run.completed/failed；断线不重复写变更。
+- [x] 重启后可继续会话；会话历史/工具轨迹可定位。
+- [x] 同租户 user A 与 user B、跨租户、篡改 session_id 进行安全回归。
+- [x] 会话截断/摘要策略；短期不做无限长期记忆。
 
 **练习**：画出 `chat_session -> thread_id -> checkpoint`；亲自关闭服务再恢复会话。
 
 **验收门槛**：跨用户会话不可读取；多会话 context 隔离；服务重启仍可延续；SSE 有正确终态。
+
+实际验收：[M07 Mock 记录](verification/M07.md)。上下文采用最近六条问题与上一件完成报价商品的有界策略。真实模型仍未接入；下一步建议补齐 M08 Agent 工具接入。
 
 ## M08｜兼容性规则与可信规格补全
 **依赖**：M04（建议 M07 后实施）。**学习**：规则引擎设计、三态逻辑、可信数据来源、单元测试参数化。

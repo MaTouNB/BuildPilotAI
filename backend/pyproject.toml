@@ -8,6 +8,8 @@ dependencies = [
     "argon2-cffi==25.1.0",
     "fastapi==0.143.0",
     "langchain-core==1.6.10",
+    "langgraph==1.2.15",
+    "langgraph-checkpoint-postgres==3.2.0",
     "langsmith==0.14.8",
     "psycopg[binary]==3.3.6",
     "pydantic==2.14.1",
