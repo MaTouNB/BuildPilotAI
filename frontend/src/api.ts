@@ -12,7 +12,7 @@ export async function authenticatedFetch(path: string, options: RequestInit = {}
   const headers = new Headers(options.headers)
   if (options.method && !['GET', 'HEAD'].includes(options.method) && csrfToken) headers.set('X-CSRF-Token', csrfToken)
   const response = await fetch('/api/v1' + path, { ...options, headers, credentials: 'same-origin', signal: options.signal ?? AbortSignal.timeout(8000) })
-  if (response.status === 401 && path.startsWith('/builds') && csrfToken === startedWithCsrf) { setCsrfToken(null); window.dispatchEvent(new Event('buildpilot-auth-expired')) }
+  if (response.status === 401 && (path.startsWith('/builds') || path.startsWith('/ai/')) && csrfToken === startedWithCsrf) { setCsrfToken(null); window.dispatchEvent(new Event('buildpilot-auth-expired')) }
   return response
 }
 export async function get<T>(path: string, signal: AbortSignal): Promise<T> {

@@ -5,6 +5,7 @@ import { AuthProvider, AccountBar, LoginGate } from './AuthContext'
 import Catalog from './Catalog'
 import { useAuth } from './auth-state'
 const BuildWorkspace = lazy(() => import('./BuildWorkspace'))
+const CatalogAssistant = lazy(() => import('./CatalogAssistant'))
 import EnvironmentPanel from './EnvironmentPanel'
 import './App.css'
 type View = 'catalog' | 'builds' | 'environment'
@@ -19,6 +20,7 @@ function WorkspaceApp() {
     <div className="page-shell"><header className="topbar"><a className="brand" href="/" aria-label="BuildPilot AI 首页"><span className="brand-mark">B</span>BuildPilot <span>AI</span></a><AccountBar /></header>
       <nav aria-label="工作区"><Button type={view === 'catalog' ? 'primary' : 'default'} onClick={() => navigate('catalog')}>配件目录</Button><Button type={view === 'builds' ? 'primary' : 'default'} onClick={() => navigate('builds')}>装机工作台</Button><Button type={view === 'environment' ? 'primary' : 'default'} onClick={() => navigate('environment')}>环境状态</Button></nav>
       {view === 'catalog' ? <Catalog /> : view === 'builds' ? <LoginGate><Suspense fallback={<p role="status">正在加载装机工作台…</p>}><BuildWorkspace key={auth.epoch} /></Suspense></LoginGate> : <EnvironmentPanel embedded />}
+      {view !== 'environment' && auth.status === 'ready' && <Suspense fallback={<p role="status">正在加载目录助手…</p>}><CatalogAssistant key={`assistant:${auth.epoch}`} /></Suspense>}
       <footer>BuildPilot AI <span>历史数据 · 可追溯来源</span></footer>
     </div>
   </ConfigProvider>

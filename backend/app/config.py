@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +17,7 @@ class Settings(BaseSettings):
     postgres_password: SecretStr | None = None
 
     demo_enabled: bool = False
+    agent_provider: Literal["mock"] = "mock"
 
     auth_cookie_secure: bool = True
     auth_session_seconds: int = Field(default=28800, ge=300, le=86400)

@@ -216,3 +216,14 @@ M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接�
 - 读取报告短暂锁方案，单条 SQL 读取配件与审核证据；不发起外网抓取。不开放规格写接口，租户 admin 也不自动获得全局目录审核权。
 
 尺寸审核值限制为普通十进制字符串（最多 4 位整数、6 位小数），范围 (0,3000] mm；不接受科学计数法或无单位输入，不经浮点或 Decimal 上下文舍入后判定。
+
+
+## M06 实际接口：Mock 只读目录助手
+
+`POST /api/v1/ai/chat`，需要 M05 会话 + X-CSRF-Token，body 仅 `{ "message": "查询 RTX 3060 的历史参考价" }`。extra 字段拒绝，不接受客户端身份、provider、system prompt 或历史。原始 body ≤8KB，问题非空且 ≤1000 字符。响应 no-store，不持久化消息。
+
+返回 mode=mock、status（GROUNDED/UNQUOTABLE/NEEDS_SELECTION/NO_PRICE_EVIDENCE）、answer（后端证据模板）、quotes、candidates、tool_calls、historical_notice、persistence。tool_calls 为本次实际执行的白名单工具名称/合法参数/结果/耗时/状态，不是模型声称的轨迹。quotes 的非空价格是 Decimal 序列化字符串，携带 USD、历史价类型、数据集日期、源行/报价 ID、source_file/line_number/row_hash/source_url；没有已选价时 price_usd=null。
+
+错误：401 未登录、403 CSRF/来源校验拒绝、413 原始请求过大、422 参数/工具白名单或次数/上下文限制、429 频率/并发满（Retry-After）、502 模拟模型或工具执行失败、504 运行/单步超时。异常详情、模型原文、凭据和数据库地址不输出。
+
+工具输入：search_parts(keywords≤120, category 可选枚举, priced_only 严格 bool, limit 严格整数1..5)；get_part/get_reference_price(part_id UUID)。只查 active 公共商品，不开放 SQL/文件/网络/私人方案/兼容工具。工具结果可回显到发起者页面，不写聊天日志。多候选不会自动选一个。真实外部 Provider endpoint 适配器不属于本次用户选择的 Mock 交付。

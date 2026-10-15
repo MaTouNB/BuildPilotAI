@@ -110,3 +110,11 @@ input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px 
 .compatibility-rules > li { border-top: 1px solid #d8e2ec; padding-top: 12px; }
 .compatibility-report details { margin: 10px 0; }
 .compatibility-report summary { cursor: pointer; }
+
+.catalog-assistant { margin: 28px 0; padding: 22px; border: 1px solid #d8e2ec; border-radius: 14px; background: white; overflow-wrap: anywhere; }
+.catalog-assistant form { display: grid; gap: 12px; margin: 18px 0; }
+.catalog-assistant label { display: grid; gap: 8px; }
+.catalog-assistant textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 10px; border: 1px solid #9caec5; border-radius: 8px; resize: vertical; }
+.catalog-assistant pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; font-size: 12px; }
+.assistant-quote { margin: 14px 0; padding: 14px; border-left: 3px solid #2157b5; background: #f4f7fb; }
+@media (min-width: 1450px) { .catalog-assistant { position: fixed; right: 16px; top: 110px; width: 300px; max-height: calc(100vh - 160px); overflow-y: auto; margin: 0; } .page-shell:has(.catalog-assistant) { margin-right: 350px; } }

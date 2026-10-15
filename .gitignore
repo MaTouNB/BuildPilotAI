@@ -29,3 +29,6 @@ data/local/
 
 # M08 local private-workspace verification screenshots
 docs/verification/M08-*.jpg
+
+# M06 local authenticated browser proof; never publish account/tenant screenshots.
+docs/verification/M06-*.jpg

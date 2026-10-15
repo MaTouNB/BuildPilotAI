@@ -1,8 +1,8 @@
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M08 兼容规则与规格证据）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M06 Mock 只读目录助手）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05、M08 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M06（M06 为 Mock）、M08 已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，AI尚未实现。按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，M06 Mock 只读目录助手已实现；尚未接真实模型。按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -274,3 +274,25 @@ make check-db
 清单为 JSON 数组，每条包含 id、part_id、field_name、value（字符串）、unit（mm 或 null）、source_url（HTTPS）、source_locator、retrieved_at（含时区）、review_status（PENDING/APPROVED/REJECTED）、reviewer、version、supersedes_id（可 null）。类别/字段词表见 app/compatibility.py；同商品同字段版本递增，固定 ID 相同内容重跑新增 0 条，禁止修改旧记录。私有清单被忽略，不随克隆附送；无清单仍可运行并得到 UNKNOWN。
 
 实际验证：后端 121、前端 26 项测试通过；[M08 验收](docs/verification/M08.md)、[学习笔记](docs/learning-notes/M08.md)。当前真实商品仍仅 CPU/GPU，缺主板等类别，不能验收完整真实配置。下一阶段按修订顺序为 M06；Agent 工具接入尚未实施。
+
+
+## M06 Mock 只读目录助手
+
+用户已选择先用 Mock 模式。无需 API Key，`make dev` 后登录，在配件目录或装机工作台的「历史目录助手」查询「查询 RTX 3060 的历史参考价」。宽屏为右侧面板，窄屏在正文下方。模拟模型只解析有限型号，但会实际调用数据库目录工具，不显示固定假报价。
+
+LangChain Core 1.6.10 / LangSmith 0.14.8 已锁定；运行时显式关闭外部 tracing。本版只支持 `AGENT_PROVIDER=mock`，不读取密钥、不访问外部模型 endpoint；真实 OpenAI-compatible 适配器待另行授权和验证，未实现。
+
+```bash
+make setup      # 更新锁定依赖；保留已有 .env
+make db-up
+make dev
+# 另一个终端验证
+make check
+make check-db
+```
+
+仅新环境没有账号时，按上方 M05 的本地账号初始化说明操作，已有账号不重建。不要把账号文件或截图提交公共仓库。
+
+只开放 search_parts/get_part/get_reference_price。只提交本轮问题，不保存聊天；无多轮、RAG、兼容工具或修改装机能力。价格与来源由后端真实工具结果提供；缺价不填零，没有工具证据不报价。取消/失败不自动重试，切换身份清空旧结果。输入、超时、工具次数、上下文/输出和单进程频率/并发均受限；生产多实例配额尚未实现。
+
+实际结果：后端 149 项、前端 34 项通过，浏览器查询得到 USD 299.97 / 数据集 2025-07-23 / 原始第 2 行；[M06 验收](docs/verification/M06.md)、[学习笔记](docs/learning-notes/M06.md)。下一阶段建议 M07，本次不自动执行。
