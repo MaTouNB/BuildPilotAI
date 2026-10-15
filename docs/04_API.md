@@ -1,8 +1,8 @@
-# 04｜REST API 与 SSE 事件契约（M03/M04 实现与后续设计）
+# 04｜REST API 与 SSE 事件契约（M03–M05 实现与后续设计）
 
 > 2026-10-13 修订：本章须与 [实施计划修订与业务契约](11_PLAN_REVISION.md) 一起使用；冲突处以修订条款为准。执行顺序与原阶段编号不同，见修订第 8 节。
 
-> M00 健康检查、M03 公共目录及 M04 手动装机已实现；M05 及后续仍为设计。版本前缀 `/api/v1`，当前响应契约见 backend/app/catalog_schemas.py 和 /docs。
+> M00健康检查、M03公共目录、M04手动装机及M05身份隔离已实现；M06及后续仍为设计。版本前缀 `/api/v1`，当前响应契约见 backend/app/catalog_schemas.py 和 /docs。
 
 ## 1. 通用规范
 - API：`/api/v1`；JSON 使用 snake_case（前端按类型生成）；分页 `page/page_size`，总数 `total`；错误均返回明确 `code/message/request_id/details`（用户不应看到内部 traceback）。
@@ -186,3 +186,21 @@ data: {"request_id":"abc"}
 - 前端在每次写入前显示修改前/后 Diff 和确认按钮。M04 是手动 HTTP 操作；没有 Agent、提案审批库或 M10 权限/审批恢复机制。
 
 M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接口在M08实现。
+
+## M05 当前身份与授权契约（替代 M04 Demo 访问规则）
+
+- 装机接口必须登录。即使旧配置 DEMO_ENABLED=true 也不绕过认证；原 Demo 方案及外键归属不变，登录者不会自动获得它们。公共配件目录仍可匿名读。
+- POST /api/v1/auth/login：JSON username/password。用户名3–64位小写ASCII字母、数字、下划线或短横线；密码输入上限128。返回当前身份和租户列表，设置随机opaque会话Cookie。账号创建限本地CLI，不提供开放注册。
+- GET /auth/me：user(id/username)、当前 tenant_id、有效成员租户列表(id/name/role)、csrf_token。没有有效会话返回401，不回传密码哈希或原会话令牌。
+- POST /auth/logout：撤销当前会话并清Cookie；服务端撤销后复制旧Cookie也不能使用。过期会话可凭原CSRF值退出清理。
+- POST /auth/select-tenant：JSON tenant_id 仅是切换请求，必须验证当前用户具有该租户有效成员资格；未授权403。成功撤销旧令牌并重新生成会话/CSRF；返回新身份。
+- Cookie：buildpilot_session，host-only、Path=/api/v1、HttpOnly、SameSite=Strict。AUTH_COOKIE_SECURE默认true；本地HTTP可以显式设false，但服务器只接受loopback。会话绝对有效期默认8小时，可配置300–86400秒。
+- 会话数据库仅保存随机令牌的SHA-256。密码以Argon2id编码哈希保存，不写日志。身份接口、私人方案及其错误响应均Cache-Control: no-store。
+- 登录受数据库持久化IP桶限制：每5分钟最多20次（包括成功尝试），超限429/RATE_LIMITED、Retry-After=300。IP只存哈希，反向代理可信地址与正式分布式防护仍需部署阶段配置。
+- 除login外的所有已登录写请求必须带 X-CSRF-Token，值取本次/me或登录响应，不存localStorage。Origin需精确匹配AUTH_ALLOWED_ORIGINS，Host也限匹配来源主机；拒绝cross-site请求。login同样检查来源/主机，不接受任意跨站登录。
+- 认证身份只来自Cookie解析的服务端会话；每次校验用户active、租户active、成员active及会话未过期。header/query/body不能声明权威user/tenant，输入模型额外身份字段返回422。
+- Build读写同时限制tenant_id和owner_user_id。member/admin均只能访问自己的方案；admin角色不自动获得他人的私有数据，没有实现管理共享权限。
+- 幂等命中前也重新鉴权，并再次检查目标资源归属；旧键不能绕过退出、成员撤销或归属变化。事务内锁定会话/成员，写入仍使用M04版本及选价/幂等保护；认证写事务锁等待/语句上限5秒。
+- 不存在、其他用户、其他租户的方案统一404。无有效会话401，CSRF/非受信来源/租户选择拒绝403，避免泄漏其他资源存在性。
+- UI未确认身份前不挂载工作台；退出、切租户、401清除旧选择并卸载编辑器，旧请求不能覆盖新身份。普通页面刷新使用Cookie向/me恢复，不把密码或登录令牌写浏览器持久存储。
+- 没有注册、密码重置、MFA、管理成员UI或聊天资源；M07聊天必须复用同一身份与归属边界，不能宣称当前已有聊天ACL。

@@ -23,3 +23,6 @@ test-results/
 
 # Local identity reviews may identify an operator; never publish automatically.
 data/reviews/
+
+# Generated local development account secrets.
+data/local/

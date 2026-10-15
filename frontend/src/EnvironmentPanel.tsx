@@ -60,7 +60,7 @@ export default function EnvironmentPanel({ embedded = false }: { embedded?: bool
     <div className={embedded ? "environment-embedded" : "page-shell"}>
       {!embedded && <header className="topbar">
         <a className="brand" href="/" aria-label="BuildPilot AI 首页"><span className="brand-mark">B</span>BuildPilot <span>AI</span></a>
-        <Tag>单用户 Demo · 未启用登录</Tag>
+        <Tag>开发环境状态</Tag>
       </header>}
       <div className="environment-main">
         {!embedded && <section className="intro">

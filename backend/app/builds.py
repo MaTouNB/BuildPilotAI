@@ -1,4 +1,4 @@
-"""Local, explicit Demo workspace. No Agent access and no multi-user authentication claim."""
+"""Private manual builds scoped to the authenticated user and active tenant."""
 
 import hashlib
 import json
@@ -7,13 +7,14 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 from sqlalchemy import func, select, text
 
+from app.auth import Auth, resolve
 from app.catalog import DB, Category, get_part
 from app.etl.source import fingerprint
-from app.models import Build, BuildItem, BuildRequest, PartPrice, Tenant, UserAccount
+from app.models import Build, BuildItem, BuildRequest, PartPrice
 
 router = APIRouter(prefix="/api/v1/builds")
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
@@ -22,31 +23,6 @@ SLOTS = ["CPU", "MOTHERBOARD", "MEMORY", "STORAGE", "PSU", "CASE", "GPU", "COOLE
 Money = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=2)]
 
 
-def demo(request: Request):
-    if not request.app.state.settings.demo_enabled:
-        raise HTTPException(401, "本地 Demo 已关闭，装机接口需要登录")
-    host = request.url.hostname
-    if (
-        host not in {"127.0.0.1", "localhost", "::1", "testserver"}
-        or request.client is None
-        or request.client.host not in {"127.0.0.1", "::1", "testclient"}
-    ):
-        raise HTTPException(403, "Demo 装机功能只允许本地访问")
-    origin = request.headers.get("origin")
-    if origin and origin not in {
-        "http://127.0.0.1:5173",
-        "http://localhost:5173",
-        "http://127.0.0.1:8000",
-        "http://localhost:8000",
-    }:
-        raise HTTPException(403, "拒绝跨站 Demo 请求")
-    if request.headers.get("sec-fetch-site") == "cross-site":
-        raise HTTPException(403, "拒绝跨站 Demo 请求")
-    # Never read identity from headers, body, query or user-controlled model context.
-    return DEMO_TENANT, DEMO_USER
-
-
-router.dependencies = [Depends(demo)]
 Key = Annotated[UUID, Header(alias="Idempotency-Key")]
 
 
@@ -185,11 +161,11 @@ def render(db, build):
     }
 
 
-def owned(db, build_id, *, lock=False):
+def owned(db, build_id, actor, *, lock=False):
     query = select(Build).where(
         Build.id == build_id,
-        Build.tenant_id == DEMO_TENANT,
-        Build.owner_user_id == DEMO_USER,
+        Build.tenant_id == actor.tenant_id,
+        Build.owner_user_id == actor.user_id,
         Build.status == "draft",
     )
     build = db.scalar(query.with_for_update() if lock else query)
@@ -198,15 +174,15 @@ def owned(db, build_id, *, lock=False):
     return build
 
 
-def write(db, key, method, path, data, action):
+def write(db, key, method, path, data, action, actor, request):
     # One transaction holds request-key lock, build-version lock, snapshots and replay response.
     with db.begin():
         db.execute(text("SET LOCAL lock_timeout = '5000'"))
         db.execute(text("SET LOCAL statement_timeout = '5000'"))
-        tenant, user = db.get(Tenant, DEMO_TENANT), db.get(UserAccount, DEMO_USER)
-        if tenant is None or user is None or tenant.status != "demo" or user.status != "demo":
-            raise HTTPException(403, "Demo 身份不可用")
-        digest = hashlib.sha256(f"{DEMO_TENANT}:{DEMO_USER}:{key}".encode()).digest()
+        fresh = resolve(db, request, lock=True)
+        if fresh != actor:
+            raise HTTPException(401, "身份已变化，请重新登录")
+        digest = hashlib.sha256(f"{actor.tenant_id}:{actor.user_id}:{key}".encode()).digest()
         db.execute(select(func.pg_advisory_xact_lock(int.from_bytes(digest[:8], signed=True))))
         fingerprint = hashlib.sha256(
             json.dumps(
@@ -216,14 +192,23 @@ def write(db, key, method, path, data, action):
         ).hexdigest()
         previous = db.scalar(
             select(BuildRequest).where(
-                BuildRequest.tenant_id == DEMO_TENANT,
-                BuildRequest.owner_user_id == DEMO_USER,
+                BuildRequest.tenant_id == actor.tenant_id,
+                BuildRequest.owner_user_id == actor.user_id,
                 BuildRequest.request_key == key,
             )
         )
         if previous:
             if previous.fingerprint != fingerprint:
                 raise HTTPException(409, "幂等键已用于不同请求")
+            visible = db.scalar(
+                select(Build.id).where(
+                    Build.id == UUID(previous.response["id"]),
+                    Build.tenant_id == actor.tenant_id,
+                    Build.owner_user_id == actor.user_id,
+                )
+            )
+            if visible is None:
+                raise HTTPException(404, "方案不存在或不可访问")
             return previous.response
         build = action()
         db.flush()
@@ -231,8 +216,8 @@ def write(db, key, method, path, data, action):
         db.add(
             BuildRequest(
                 id=uuid4(),
-                tenant_id=DEMO_TENANT,
-                owner_user_id=DEMO_USER,
+                tenant_id=actor.tenant_id,
+                owner_user_id=actor.user_id,
                 request_key=key,
                 fingerprint=fingerprint,
                 response=response,
@@ -251,12 +236,13 @@ def change_version(build, expected):
 @router.get("", response_model=Results)
 def list_builds(
     db: DB,
+    actor: Auth,
     page: Annotated[int, Query(ge=1, le=10000)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ):
     conditions = [
-        Build.tenant_id == DEMO_TENANT,
-        Build.owner_user_id == DEMO_USER,
+        Build.tenant_id == actor.tenant_id,
+        Build.owner_user_id == actor.user_id,
         Build.status == "draft",
     ]
     total = db.scalar(select(func.count()).select_from(Build).where(*conditions))
@@ -276,12 +262,12 @@ def list_builds(
 
 
 @router.post("", response_model=Result, status_code=201)
-def create(data: Create, db: DB, key: Key):
+def create(data: Create, db: DB, key: Key, actor: Auth, request: Request):
     def action():
         build = Build(
             id=uuid4(),
-            tenant_id=DEMO_TENANT,
-            owner_user_id=DEMO_USER,
+            tenant_id=actor.tenant_id,
+            owner_user_id=actor.user_id,
             name=data.name,
             purpose=data.purpose,
             budget_amount=data.budget_amount,
@@ -292,29 +278,31 @@ def create(data: Create, db: DB, key: Key):
         db.add(build)
         return build
 
-    return write(db, key, "POST", "", data, action)
+    return write(db, key, "POST", "", data, action, actor, request)
 
 
 @router.get("/{build_id}", response_model=Result)
-def get_build(build_id: UUID, db: DB):
-    return render(db, owned(db, build_id))
+def get_build(build_id: UUID, db: DB, actor: Auth):
+    return render(db, owned(db, build_id, actor))
 
 
 @router.patch("/{build_id}", response_model=Result)
-def edit(build_id: UUID, data: Edit, db: DB, key: Key):
+def edit(build_id: UUID, data: Edit, db: DB, key: Key, actor: Auth, request: Request):
     def action():
-        build = owned(db, build_id, lock=True)
+        build = owned(db, build_id, actor, lock=True)
         change_version(build, data.expected_version)
         build.name, build.purpose, build.budget_amount = data.name, data.purpose, data.budget_amount
         return build
 
-    return write(db, key, "PATCH", str(build_id), data, action)
+    return write(db, key, "PATCH", str(build_id), data, action, actor, request)
 
 
 @router.put("/{build_id}/items/{slot}", response_model=Result)
-def put_item(build_id: UUID, slot: Category, data: ItemEdit, db: DB, key: Key):
+def put_item(
+    build_id: UUID, slot: Category, data: ItemEdit, db: DB, key: Key, actor: Auth, request: Request
+):
     def action():
-        build = owned(db, build_id, lock=True)
+        build = owned(db, build_id, actor, lock=True)
         change_version(build, data.expected_version)
         # Share the ETL selection lock, so quote expectation and snapshot are atomic.
         price_lock = int(fingerprint(["price-selection", str(data.part_id)])[:16], 16) - 2**63
@@ -355,13 +343,15 @@ def put_item(build_id: UUID, slot: Category, data: ItemEdit, db: DB, key: Key):
         )
         return build
 
-    return write(db, key, "PUT", f"{build_id}/items/{slot}", data, action)
+    return write(db, key, "PUT", f"{build_id}/items/{slot}", data, action, actor, request)
 
 
 @router.delete("/{build_id}/items/{slot}", response_model=Result)
-def delete_item(build_id: UUID, slot: Category, data: Version, db: DB, key: Key):
+def delete_item(
+    build_id: UUID, slot: Category, data: Version, db: DB, key: Key, actor: Auth, request: Request
+):
     def action():
-        build = owned(db, build_id, lock=True)
+        build = owned(db, build_id, actor, lock=True)
         change_version(build, data.expected_version)
         item = db.scalar(
             select(BuildItem).where(BuildItem.build_id == build_id, BuildItem.slot == slot)
@@ -371,15 +361,15 @@ def delete_item(build_id: UUID, slot: Category, data: Version, db: DB, key: Key)
         db.delete(item)
         return build
 
-    return write(db, key, "DELETE", f"{build_id}/items/{slot}", data, action)
+    return write(db, key, "DELETE", f"{build_id}/items/{slot}", data, action, actor, request)
 
 
 @router.delete("/{build_id}", response_model=Result)
-def archive(build_id: UUID, data: Version, db: DB, key: Key):
+def archive(build_id: UUID, data: Version, db: DB, key: Key, actor: Auth, request: Request):
     def action():
-        build = owned(db, build_id, lock=True)
+        build = owned(db, build_id, actor, lock=True)
         change_version(build, data.expected_version)
         build.status = "archived"
         return build
 
-    return write(db, key, "DELETE", str(build_id), data, action)
+    return write(db, key, "DELETE", str(build_id), data, action, actor, request)

@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Alert from 'antd/es/alert'
 import Button from 'antd/es/button'
 import Modal from 'antd/es/modal'
 import Tag from 'antd/es/tag'
-import { type Page, type Part } from './api'
+import { authenticatedFetch, type Page, type Part } from './api'
 import { useResource } from './useResource'
 export type BuildItem = { slot: string; part_id: string; part_name: string; quantity: number; part_price_id: string | null; price_snapshot_usd: string | null; currency: string | null; source_name: string | null; dataset_updated_at: string | null; subtotal_usd: string | null }
 export type Build = { id: string; name: string; purpose: string; budget_amount: string | null; budget_currency: string; version: number; status: string; items: BuildItem[]; total_usd: string; price_is_complete: boolean; build_is_complete: boolean; total_is_complete: boolean; over_budget: boolean; missing_components: string[]; unpriced_slots: string[]; pending_requirements: string[]; checked_rules_status: string }
@@ -41,9 +41,9 @@ function SlotEditor({ build, stage }: { build: Build; stage: (input: Omit<Pendin
 function BuildEditor({ id, attempt, stage }: { id: string; attempt: number; stage: (input: Omit<Pending, 'key'>) => void }) {
   const resource = useResource<Build>(`/builds/${id}`, attempt)
   if (resource.status === 'loading') return <p role="status">正在加载装机方案…</p>
-  if (resource.status === 'error') return <Alert type="error" title="方案不可用" description="可能已归档、Demo 已关闭或服务暂时不可用。重新加载列表后选择方案。" />
+  if (resource.status === 'error') return <Alert type="error" title="方案不可用" description="可能已归档、无权访问或服务暂时不可用。重新加载列表后选择方案。" />
   const build = resource.data
-  return <section className="build-editor"><div className="panel-heading"><div><h2>{build.name}</h2><p className="result-meta">版本 {build.version} · 本地 Demo 共享方案</p></div><Button danger onClick={() => stage({ title: '确认归档方案', before: `${build.name}（可编辑）`, after: '归档，退出活动方案列表；数据保留', method: 'DELETE', path: `/builds/${id}`, body: { expected_version: build.version } })}>归档方案</Button></div>
+  return <section className="build-editor"><div className="panel-heading"><div><h2>{build.name}</h2><p className="result-meta">版本 {build.version} · 当前账号的私人方案</p></div><Button danger onClick={() => stage({ title: '确认归档方案', before: `${build.name}（可编辑）`, after: '归档，退出活动方案列表；数据保留', method: 'DELETE', path: `/builds/${id}`, body: { expected_version: build.version } })}>归档方案</Button></div>
     <div className="build-summary"><h3>{build.total_is_complete ? '完整整机历史参考总价' : '已报价小计'}</h3><strong>USD {build.total_usd}</strong><p>USD 历史参考价 / 数据集最后更新：{[...new Set(build.items.map(item => item.dataset_updated_at).filter(Boolean))].sort().join('、') || '尚无报价快照'}</p><p>按保存的历史价快照计算，不是当前市价。</p><Tag color={build.price_is_complete ? 'success' : 'warning'}>{build.price_is_complete ? '已选条目价格完整' : '条目价格不完整'}</Tag><Tag color={build.build_is_complete ? 'success' : 'warning'}>{build.build_is_complete ? '组件完整' : '组件不完整'}</Tag><p>预算：{build.budget_amount === null ? '未设置' : `USD ${build.budget_amount}`}</p>{build.over_budget && <Alert type="warning" title="已报价小计超出预算；仍可保存草稿" />}
       {build.missing_components.length > 0 && <p>缺少必需组件：{build.missing_components.map(slot => labels[slot]).join('、')}</p>}{build.unpriced_slots.length > 0 && <p>缺价条目：{build.unpriced_slots.map(slot => labels[slot]).join('、')}</p>}{build.pending_requirements.map(message => <p key={message}>{message}</p>)}<p>兼容性：UNKNOWN，尚未执行兼容规则。组件与价格完整也不代表兼容。</p>
     </div>
@@ -65,29 +65,35 @@ export default function BuildWorkspace() {
   const [pending, setPending] = useState<Pending | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const alive = useRef(true)
+  const mutationController = useRef<AbortController | null>(null)
+  useEffect(() => { alive.current = true; return () => { alive.current = false; mutationController.current?.abort() } }, [])
   const list = useResource<Page<Build>>(`/builds?page=${page}&page_size=10`, attempt)
   const select = (id: string | null) => { setSelected(id); remember(id) }
   const stage = (input: Omit<Pending, 'key'>) => { setError(''); setPending({ ...input, key: crypto.randomUUID() }) }
   async function confirm() {
     if (!pending || busy) return
     setBusy(true); setError('')
-    const controller = new AbortController(), timeout = window.setTimeout(() => controller.abort(), 8000)
+    const controller = new AbortController()
+    mutationController.current = controller
+    const timeout = window.setTimeout(() => controller.abort(), 8000)
     try {
-      const response = await fetch('/api/v1' + pending.path, { method: pending.method, headers: { 'Content-Type': 'application/json', 'Idempotency-Key': pending.key }, body: JSON.stringify(pending.body), signal: controller.signal })
+      const response = await authenticatedFetch(pending.path, { method: pending.method, headers: { 'Content-Type': 'application/json', 'Idempotency-Key': pending.key }, body: JSON.stringify(pending.body), signal: controller.signal })
       if (!response.ok) {
-        if (response.status === 409) { setPending(null); setAttempt(x => x + 1); throw new Error('版本、选价或幂等请求已变化。已重新加载，请重新预览并确认修改。') }
-        throw new Error(`保存失败 (${response.status})，请检查 Demo 状态和请求内容。`)
+        if (response.status === 409) { if (!alive.current) return; setPending(null); setAttempt(x => x + 1); throw new Error('版本、选价或幂等请求已变化。已重新加载，请重新预览并确认修改。') }
+        throw new Error(`保存失败 (${response.status})，请刷新身份并检查请求内容。`)
       }
       const build = await response.json() as Build
+      if (!alive.current) return
       select(build.status === 'archived' ? null : build.id)
       setAttempt(x => x + 1); setPending(null)
-    } catch (err) { setError(err instanceof Error && err.name !== 'AbortError' ? err.message : '请求超时，结果尚未确认。可重试同一修改，幂等键保持不变。') }
-    finally { window.clearTimeout(timeout); setBusy(false) }
+    } catch (err) { if (alive.current) setError(err instanceof Error && err.name !== 'AbortError' ? err.message : '请求超时，结果尚未确认。可重试同一修改，幂等键保持不变。') }
+    finally { window.clearTimeout(timeout); if (alive.current) setBusy(false) }
   }
-  return <main className="catalog-main"><section className="catalog-intro"><p className="eyebrow">M04 / 手动装机</p><h1>保存方案，核对每笔来源。</h1><Alert type="warning" title="本地单用户 Demo · 未启用登录" description="所有本地操作者共享这些方案。仅供本地使用，不代表多用户权限隔离。" /></section>
+  return <main className="catalog-main"><section className="catalog-intro"><p className="eyebrow">M04 / 手动装机</p><h1>保存方案，核对每笔来源。</h1><Alert type="info" title="已启用账号与租户隔离" description="方案按当前登录账号和所选租户隔离；修改前请核对 Diff。" /></section>
     {error && <Alert type="error" title={error} />}
     <div className="build-layout"><aside className="filter-panel"><h2>装机方案</h2><Button onClick={() => setAttempt(x => x + 1)}>刷新方案</Button>
-      {list.status === 'loading' ? <p role="status">正在加载方案列表…</p> : list.status === 'error' ? <Alert type="error" title="方案列表加载失败" description="检查服务和 DEMO_ENABLED。关闭 Demo 时不能访问方案。" /> : <><ul className="build-list">{list.data.items.map(build => <li key={build.id}><Button type={selected === build.id ? 'primary' : 'default'} onClick={() => select(build.id)}>{build.name}</Button></li>)}</ul>{list.data.total === 0 && <p>尚无方案。先创建一个草稿。</p>}<div className="pagination"><Button disabled={page === 1} onClick={() => setPage(x => x - 1)}>方案上一页</Button><Button disabled={page * 10 >= list.data.total} onClick={() => setPage(x => x + 1)}>方案下一页</Button></div></>}
+      {list.status === 'loading' ? <p role="status">正在加载方案列表…</p> : list.status === 'error' ? <Alert type="error" title="方案列表加载失败" description="检查服务和当前登录状态；仅显示当前账号在此租户内的方案。" /> : <><ul className="build-list">{list.data.items.map(build => <li key={build.id}><Button type={selected === build.id ? 'primary' : 'default'} onClick={() => select(build.id)}>{build.name}</Button></li>)}</ul>{list.data.total === 0 && <p>尚无方案。先创建一个草稿。</p>}<div className="pagination"><Button disabled={page === 1} onClick={() => setPage(x => x - 1)}>方案上一页</Button><Button disabled={page * 10 >= list.data.total} onClick={() => setPage(x => x + 1)}>方案下一页</Button></div></>}
       <h3>新建草稿</h3><form aria-label="新建方案" className="build-create" onSubmit={event => { event.preventDefault(); const data = new FormData(event.currentTarget); const name = String(data.get('name') ?? '').trim(); stage({ title: '确认新建方案', before: '尚未创建', after: `${name}；空方案，预算待设置`, method: 'POST', path: '/builds', body: { name } }) }}><label>新方案名称<input name="name" maxLength={120} required placeholder="例如：日常办公" /></label><Button htmlType="submit">新建方案</Button></form>
     </aside>{selected ? <BuildEditor id={selected} key={selected} attempt={attempt} stage={stage} /> : <section className="results-panel empty-state"><h2>选择或新建装机方案</h2><p>草稿可缺组件或缺价。保存后刷新仍可继续编辑。</p></section>}</div>
     <Modal title={pending?.title} open={pending !== null} onOk={() => { void confirm() }} onCancel={() => { if (!busy) { setPending(null); setError('') } }} okText="确认并保存" cancelText="取消" confirmLoading={busy} closable={!busy} mask={{ closable: !busy }} okButtonProps={{ 'aria-label': '确认并保存' }} cancelButtonProps={{ disabled: busy, 'aria-label': '取消' }}>

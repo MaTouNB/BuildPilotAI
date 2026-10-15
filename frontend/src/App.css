@@ -92,3 +92,15 @@ input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px 
 .diff { overflow-wrap: anywhere; line-height: 1.8; }
 @media (max-width: 900px) { .build-layout { grid-template-columns: 220px minmax(0, 1fr); } .build-slots { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .build-layout { grid-template-columns: 1fr; } .build-editor { padding: 20px; } nav { flex-wrap: wrap; } }
+.account-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 14px; }
+.account-bar label { display: flex; gap: 8px; align-items: center; }
+.account-bar select { max-width: 220px; padding: 8px; border: 1px solid #a8b5c6; border-radius: 6px; background: white; font: inherit; }
+.login-panel { margin: 40px auto; max-width: 520px; background: white; border: 1px solid #dce2ec; border-radius: 16px; padding: 28px; line-height: 1.8; }
+.login-panel h1 { font-size: 30px; }
+.login-panel form, .login-panel label { display: grid; gap: 12px; }
+.login-panel label { margin-bottom: 12px; }
+.login-panel input { min-width: 0; padding: 12px; border: 1px solid #a8b5c6; border-radius: 6px; font: inherit; width: 100%; }
+.account-bar { max-width: 100%; }
+.account-bar > span { min-width: 0; overflow-wrap: anywhere; }
+.account-bar label { min-width: 0; max-width: 100%; }
+.account-bar select { min-width: 0; }

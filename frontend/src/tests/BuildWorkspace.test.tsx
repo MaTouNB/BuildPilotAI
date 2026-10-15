@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import BuildWorkspace, { type Build } from '../BuildWorkspace'
@@ -93,4 +93,20 @@ describe('manual build workspace', () => {
     expect(await screen.findByText('尚无方案。先创建一个草稿。')).toBeInTheDocument()
     expect(fetch.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(true)
   })
+  it('ignores a completed write after the identity workspace unmounts', async () => {
+    const base = api(empty)
+    let finish!: (value: unknown) => void
+    const fetch = vi.fn((url: string, options?: RequestInit) => options?.method === 'PUT'
+      ? new Promise(resolve => { finish = resolve }) : base(url, options))
+    vi.stubGlobal('fetch', fetch)
+    const view = render(<BuildWorkspace />)
+    await selectBuild()
+    await userEvent.click(await screen.findByRole('button', { name: '预览修改' }))
+    await userEvent.click(screen.getByRole('button', { name: '确认并保存' }))
+    localStorage.removeItem('buildpilot.last-build-id')
+    view.unmount()
+    await act(async () => { finish({ ok: true, json: async () => empty }) })
+    expect(localStorage.getItem('buildpilot.last-build-id')).toBeNull()
+  })
+
 })

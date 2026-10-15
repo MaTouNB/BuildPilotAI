@@ -1,17 +1,17 @@
-# BuildPilot AI — 完整项目实施手册（M04 修订版）
+# BuildPilot AI — 完整项目实施手册（M05 修订版）
 
-2026-10-14：M00–M04 已验收；后续为设计稿。
+2026-10-15：M00–M05 已验收；后续为设计稿。
 
 
 ---
 
 <!-- 源文件：README.md -->
 
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M04 手动装机）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M05 登录与租户隔离）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M04 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05 已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，登录/AI尚未实现。按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，AI尚未实现。按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -33,7 +33,7 @@ make dev     # 同时启动前后端；Ctrl+C 停止两者
 - OpenAPI：http://127.0.0.1:8000/docs
 - 数据库：127.0.0.1:5433；密码只在本地 .env，脚本随机生成且不显示。
 
-前端通过 Vite 同源代理访问 /health、/ready、/api，不需要开放跨域。只绑定 loopback，当前是单用户 Demo，尚未启用认证，M04 业务 CRUD 只在本地 Demo 中开放。
+前端通过 Vite 同源代理访问 /health、/ready、/api，不需要开放跨域。只绑定loopback，M05装机工作台需要登录；原Demo方案保留原归属。公共目录仍可匿名浏览。
 
 ### 测试与检查
 
@@ -164,6 +164,8 @@ make check-db
 
 [M03 验收与限制](docs/verification/M03.md) · [M03 学习笔记](docs/learning-notes/M03.md) · [当前 API 契约](docs/04_API.md)
 
+> 以下为M04阶段说明。M05已替代Demo访问：现在必须登录，DEMO_ENABLED不再开放装机接口。
+
 ## M04 手动装机工作台
 
 ```bash
@@ -186,6 +188,30 @@ make check-db
 Demo只允许本地访问，并检查Host/Origin、拒绝跨站请求；所有本地操作者共享专用Demo身份，不能当作正式认证或多用户权限隔离。M05另行实现登录。不要用此开发模式发布到公网。
 
 [M04 验收记录](docs/verification/M04.md) · [M04 学习笔记](docs/learning-notes/M04.md) · [M04 API 契约](docs/04_API.md)
+
+## M05 登录与私人方案
+
+```bash
+make setup
+make db-up
+make db-migrate
+cd backend
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.seed_accounts
+cd ..
+make dev
+```
+
+已有.env需添加`AUTH_COOKIE_SECURE=false`后重启（仅本地HTTP）；Settings默认Secure=true。AUTH_ALLOWED_ORIGINS按JSON列表配置精确受信来源，默认本地5173/8000。开发模式不开放CORS或Demo权限绕过。
+
+种子命令创建两个开发租户、三个账号（dev-alice属于两租户，dev-bob属于A，dev-carol属于B）；随机密码只写入被忽略的`data/local/m05-accounts.json`，权限600，不打印。账号/输出存在时拒绝覆盖；不能用作密码重置。不要上传该文件。
+
+打开5173“装机工作台”登录。Cookie是HttpOnly/SameSite=Strict，密码和会话令牌不存localStorage；每次服务端校验账号、会话、租户成员状态。身份栏可切换有效租户和退出，私人方案只对所选租户内的创建者可见，其他用户/租户统一404。角色admin也没有自动读取他人私有数据的特权。
+
+原“M04 验收演示”仍归专用Demo，不会转给任何登录账号。新的登录演示方案单独保存，换租户/退出清空旧选择；未登录不挂载编辑器。既有Diff确认、版本和快照保护仍生效。
+
+`make check`与`make check-db`运行完整检查和权限回归。测试使用两租户三账号的合成fixtures，不依赖本地明文密码文件。没有开放注册、密码重置、MFA、聊天或AI。
+
+[M05 验收](docs/verification/M05.md) · [M05 学习笔记](docs/learning-notes/M05.md) · [当前身份/API契约](docs/04_API.md)
 
 ## 一句话目标
 
@@ -244,7 +270,7 @@ Demo只允许本地访问，并检查Host/Origin、拒绝跨站请求；所有�
 
 # Codex 工作规范（必须遵守）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M04 已验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05 已验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
 
 ## 1. 工作模式
 - 每次只实施用户指定的 `Mxx` 阶段。不得主动跨越未完成里程碑，也不得一次“生成整个项目”。
@@ -711,16 +737,24 @@ build_request 对(tenant_id,owner_user_id,request_key)唯一，保存请求内�
 
 总价由读取快照Decimal计算，不存可被客户端覆盖的总价。quantity变化保留快照；替换不同商品取新快照。软归档不会删除条目/报价/幂等记录。M05将增加认证字段与完整ACL，并默认关闭Demo，不自动迁移归属。
 
+## M05 实现
+
+迁移 m05_001 仅给 user_account 增加nullable password_hash，并创建tenant_member（tenant_id+user_id复合主键，member/admin角色）、auth_session（token_hash主键，用户/租户外键及过期索引）、login_throttle（哈希桶和窗口计数）。Demo账号仍status=demo且无密码哈希，不能登录；迁移不重写任何Build归属。
+
+opaque令牌只在HttpOnly Cookie保存，数据库保存其SHA-256。身份解析联查会话、账号、租户及成员状态，写事务再次解析并锁定；不是依赖客户端传入的user_id/tenant_id。租户切换撤销旧令牌，防旧CSRF/旧会话继续访问。
+
+本地seed_accounts显式创建两个开发租户和三个随机密码账号，其中一个属于两租户。不会创建正式用户、重置已有密码或继承Demo清单。密码文件只在被忽略data/local/中，以O_EXCL和0600创建，失败不展示SQL参数或秘密。过期会话/限流桶的定期清理留至运维阶段。
+
 
 ---
 
 <!-- 源文件：docs/04_API.md -->
 
-# 04｜REST API 与 SSE 事件契约（M03/M04 实现与后续设计）
+# 04｜REST API 与 SSE 事件契约（M03–M05 实现与后续设计）
 
 > 2026-10-13 修订：本章须与 [实施计划修订与业务契约](11_PLAN_REVISION.md) 一起使用；冲突处以修订条款为准。执行顺序与原阶段编号不同，见修订第 8 节。
 
-> M00 健康检查、M03 公共目录及 M04 手动装机已实现；M05 及后续仍为设计。版本前缀 `/api/v1`，当前响应契约见 backend/app/catalog_schemas.py 和 /docs。
+> M00健康检查、M03公共目录、M04手动装机及M05身份隔离已实现；M06及后续仍为设计。版本前缀 `/api/v1`，当前响应契约见 backend/app/catalog_schemas.py 和 /docs。
 
 ## 1. 通用规范
 - API：`/api/v1`；JSON 使用 snake_case（前端按类型生成）；分页 `page/page_size`，总数 `total`；错误均返回明确 `code/message/request_id/details`（用户不应看到内部 traceback）。
@@ -904,6 +938,24 @@ data: {"request_id":"abc"}
 - 前端在每次写入前显示修改前/后 Diff 和确认按钮。M04 是手动 HTTP 操作；没有 Agent、提案审批库或 M10 权限/审批恢复机制。
 
 M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接口在M08实现。
+
+## M05 当前身份与授权契约（替代 M04 Demo 访问规则）
+
+- 装机接口必须登录。即使旧配置 DEMO_ENABLED=true 也不绕过认证；原 Demo 方案及外键归属不变，登录者不会自动获得它们。公共配件目录仍可匿名读。
+- POST /api/v1/auth/login：JSON username/password。用户名3–64位小写ASCII字母、数字、下划线或短横线；密码输入上限128。返回当前身份和租户列表，设置随机opaque会话Cookie。账号创建限本地CLI，不提供开放注册。
+- GET /auth/me：user(id/username)、当前 tenant_id、有效成员租户列表(id/name/role)、csrf_token。没有有效会话返回401，不回传密码哈希或原会话令牌。
+- POST /auth/logout：撤销当前会话并清Cookie；服务端撤销后复制旧Cookie也不能使用。过期会话可凭原CSRF值退出清理。
+- POST /auth/select-tenant：JSON tenant_id 仅是切换请求，必须验证当前用户具有该租户有效成员资格；未授权403。成功撤销旧令牌并重新生成会话/CSRF；返回新身份。
+- Cookie：buildpilot_session，host-only、Path=/api/v1、HttpOnly、SameSite=Strict。AUTH_COOKIE_SECURE默认true；本地HTTP可以显式设false，但服务器只接受loopback。会话绝对有效期默认8小时，可配置300–86400秒。
+- 会话数据库仅保存随机令牌的SHA-256。密码以Argon2id编码哈希保存，不写日志。身份接口、私人方案及其错误响应均Cache-Control: no-store。
+- 登录受数据库持久化IP桶限制：每5分钟最多20次（包括成功尝试），超限429/RATE_LIMITED、Retry-After=300。IP只存哈希，反向代理可信地址与正式分布式防护仍需部署阶段配置。
+- 除login外的所有已登录写请求必须带 X-CSRF-Token，值取本次/me或登录响应，不存localStorage。Origin需精确匹配AUTH_ALLOWED_ORIGINS，Host也限匹配来源主机；拒绝cross-site请求。login同样检查来源/主机，不接受任意跨站登录。
+- 认证身份只来自Cookie解析的服务端会话；每次校验用户active、租户active、成员active及会话未过期。header/query/body不能声明权威user/tenant，输入模型额外身份字段返回422。
+- Build读写同时限制tenant_id和owner_user_id。member/admin均只能访问自己的方案；admin角色不自动获得他人的私有数据，没有实现管理共享权限。
+- 幂等命中前也重新鉴权，并再次检查目标资源归属；旧键不能绕过退出、成员撤销或归属变化。事务内锁定会话/成员，写入仍使用M04版本及选价/幂等保护；认证写事务锁等待/语句上限5秒。
+- 不存在、其他用户、其他租户的方案统一404。无有效会话401，CSRF/非受信来源/租户选择拒绝403，避免泄漏其他资源存在性。
+- UI未确认身份前不挂载工作台；退出、切租户、401清除旧选择并卸载编辑器，旧请求不能覆盖新身份。普通页面刷新使用Cookie向/me恢复，不把密码或登录令牌写浏览器持久存储。
+- 没有注册、密码重置、MFA、管理成员UI或聊天资源；M07聊天必须复用同一身份与归属边界，不能宣称当前已有聊天ACL。
 
 
 ---
@@ -1141,15 +1193,17 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 **依赖**：M04。**学习**：密码哈希、安全 Cookie/JWT、RBAC 与资源级 ACL、IDOR、数据库事务、权限测试。
 
 **实施任务**
-- [ ] 建用户、租户、租户成员数据；使用安全密码哈希；创建开发种子测试账号（不得硬编码正式密码）。
-- [ ] 登录、登出、当前身份、租户选择；不让浏览器提供的 user_id/tenant_id 成为权限依据。
-- [ ] 私有装机方案和后续聊天均按当前用户 + tenant 校验；API 不泄漏其他用户资源存在性。
-- [ ] 前端路由守卫和登录状态；无权限页面/错误提示。
-- [ ] 两租户至少三账号进行交叉访问、篡改 ID 的安全测试。
+- [x] 建用户、租户、租户成员数据；使用安全密码哈希；创建开发种子测试账号（不得硬编码正式密码）。
+- [x] 登录、登出、当前身份、租户选择；不让浏览器提供的 user_id/tenant_id 成为权限依据。
+- [x] 私有装机方案按当前用户 + tenant 校验；后续聊天在M07复用此边界（当前没有聊天资源）；API 不泄漏其他用户资源存在性。
+- [x] 前端路由守卫和登录状态；无权限页面/错误提示。
+- [x] 两租户至少三账号进行交叉访问、篡改 ID 的安全测试。
 
 **练习**：手工复制另一个用户的 build UUID 用浏览器/API 请求，观察 404/403；解释 Authentication vs Authorization。
 
 **验收门槛**：同租户不同用户、不同租户的 build 数据不可交叉读写；退出后私有 API 无法访问。
+
+实际验收：[M05 记录](verification/M05.md)。登录/退出/租户选择、三账号两租户越权、旧Demo归属保护通过。按修订顺序下一阶段为M08兼容规则，不自动执行。
 
 ## M06｜最小 Agent Tool Calling（先做只读）
 **依赖**：M05。**学习**：Chat Model、tool schema、tool call -> tool result -> LLM 解释循环、Prompt 分层、模型的非确定性。
@@ -1584,7 +1638,7 @@ cd frontend && npm run typecheck && npm run test
 
 # 11｜实施计划修订与业务契约
 
-修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 手动装机已验收；M05 及后续尚未实施。
+修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；后续尚未实施。
 
 本文件补充并修订原交接计划。与其他文档冲突时，以本文件对应条款为准；实施各阶段时同步更新具体接口、迁移和测试。原始数据及历史 USD 口径不变。
 
@@ -1658,7 +1712,7 @@ cd frontend && npm run typecheck && npm run test
 - 建议执行顺序：M00 → M01 → M02 → M03 → M04 → M05 → M08 → M06 → M07 → M10 → M09 → M11 → M12。
 - M08 提前时只交付规则、规格补充和手动工作台；Agent 工具接入在 M06/M07 完成后、M10 前实施。M10 不依赖 RAG；M11 依赖 M09 和 M10。
 - 编号保持不变。因执行顺序调整，V0.2 发布门槛包含 M05–M08，V0.3 包含 M09–M10；V0.1 和 V1.0 不变。
-- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04 手动装机已验收；M05–M12 尚未实施。
+- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M06–M12 尚未实施。
 
 ## 9. 修订对应关系
 
