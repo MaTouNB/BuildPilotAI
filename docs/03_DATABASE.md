@@ -131,3 +131,9 @@ m08_001 接 m05_001。表包含 UUID id/part_id（hardware_part 外键）、fiel
 本地 `python -m app.spec_reviews manifest.json` 验证类别、字段/单位/值、HTTPS 来源、定位/审核者、带时区非未来查阅时间。事务按商品加锁，按字段递增版本；同 ID 不同内容拒绝。PENDING/REJECTED 不参与计算/不隐藏既有批准，冲突批准返回 UNKNOWN；解决冲突需明确批准替代关系。数据库同时保留旧记录用于审计。
 
 数据库是本地运维信任边界；直连数据库的持有者有管理权，审核命令不是独立账号权限系统。没有对外开放审核写 API。真实 CPU 的 AM5 是本轮明确人工批准；主板/内存/机箱尚无真实审核证据。
+
+## M07 已实现：会话与 checkpoint
+
+新增 chat_session（服务端 owner/tenant、内部 thread_id、版本与删除状态）、chat_run（请求幂等、终态、截止时间）、chat_message（run 内序号与展示历史）、chat_event（run 内递增事件）。同会话 RUNNING 使用部分唯一索引，执行/清理共享 PostgreSQL advisory lock。助手追加与用户追加均推进会话版本。
+
+迁移 m07_001 固定 checkpoint-postgres 3.2.0 十条迁移，维护 checkpoint_migrations、checkpoints、checkpoint_blobs、checkpoint_writes；Alembic metadata 检查排除这四张 SDK 自有表。没有启动时自动建表。checkpoint 不对外暴露，不是展示历史事实源。删除清理及保留策略见 [M07](verification/M07.md)。

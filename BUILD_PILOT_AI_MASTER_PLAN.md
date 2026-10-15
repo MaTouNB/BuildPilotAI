@@ -1,17 +1,17 @@
-# BuildPilot AI — 完整项目实施手册（M06 Mock 修订版）
+# BuildPilot AI — 完整项目实施手册（M07 Mock 修订版）
 
-2026-10-15：M00–M06（M06 为 Mock）、M08 规则与工作台已验收；真实模型/M07 等后续为设计稿。
+2026-10-15：M00–M07（M06/M07 Mock）、M08 规则与工作台已验收；真实模型、M08 Agent 工具接入及后续仍待实施。
 
 
 ---
 
 <!-- 源文件：README.md -->
 
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M06 Mock 只读目录助手）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M07 Mock 持久化会话）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M06（M06 为 Mock）、M08 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M07（M06/M07 为 Mock）、M08 规则与工作台已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，M06 Mock 只读目录助手已实现；尚未接真实模型。按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，M06 Mock 只读目录助手及 M07 持久化会话已实现；尚未接真实模型。按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -306,6 +306,32 @@ make check-db
 
 实际结果：后端 149 项、前端 34 项通过，浏览器查询得到 USD 299.97 / 数据集 2025-07-23 / 原始第 2 行；[M06 验收](docs/verification/M06.md)、[学习笔记](docs/learning-notes/M06.md)。下一阶段建议 M07，本次不自动执行。
 
+## M07 持久化会话（Mock）
+
+登录后可创建、切换会话、查看历史、取消执行及预览后删除会话。服务重启后从 PostgreSQL 恢复历史与有限上下文；会话按服务端用户和租户隔离。Mock 仅支持有限目录问句与上一件商品追问，不代表真实模型能力。
+
+```bash
+make setup
+make db-up
+make db-migrate
+make dev
+make check
+make check-db
+```
+
+SSE 断线通过状态与历史查询恢复，不自动重发问题；答案分片来自完成后持久化的答案，并非实时模型 token。每会话最多 100 次运行、每用户每租户最多 30 个活动会话。上下文保留最近六条问题及上一件有完成报价证据的商品。
+
+删除需确认 Diff 和版本；删除标记立即阻止访问，后台清理消息、执行、事件和 checkpoint。失败保留 PENDING，可重试：
+
+```bash
+cd backend
+uv run --locked python -m app.chat.cleanup
+```
+
+该命令只清理已删除会话，不清理活动历史；单项失败不阻塞其他项。最小删除记录在删除满七天且内容清理完成后，随下一次清理任务移除。尚无内置周期调度，需要运维执行重试任务。
+
+验收：[M07 记录](docs/verification/M07.md)；学习：[M07 笔记](docs/learning-notes/M07.md)。下一阶段建议补齐 M08 Agent 兼容性工具接入，未自动实施。
+
 
 ---
 
@@ -313,7 +339,7 @@ make check-db
 
 # Codex 工作规范（必须遵守）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M06（M06 Mock）、M08 规则与工作台已验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M07（M06/M07 Mock）、M08 规则与工作台已验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
 
 ## 1. 工作模式
 - 每次只实施用户指定的 `Mxx` 阶段。不得主动跨越未完成里程碑，也不得一次“生成整个项目”。
@@ -797,6 +823,12 @@ m08_001 接 m05_001。表包含 UUID id/part_id（hardware_part 外键）、fiel
 
 数据库是本地运维信任边界；直连数据库的持有者有管理权，审核命令不是独立账号权限系统。没有对外开放审核写 API。真实 CPU 的 AM5 是本轮明确人工批准；主板/内存/机箱尚无真实审核证据。
 
+## M07 已实现：会话与 checkpoint
+
+新增 chat_session（服务端 owner/tenant、内部 thread_id、版本与删除状态）、chat_run（请求幂等、终态、截止时间）、chat_message（run 内序号与展示历史）、chat_event（run 内递增事件）。同会话 RUNNING 使用部分唯一索引，执行/清理共享 PostgreSQL advisory lock。助手追加与用户追加均推进会话版本。
+
+迁移 m07_001 固定 checkpoint-postgres 3.2.0 十条迁移，维护 checkpoint_migrations、checkpoints、checkpoint_blobs、checkpoint_writes；Alembic metadata 检查排除这四张 SDK 自有表。没有启动时自动建表。checkpoint 不对外暴露，不是展示历史事实源。删除清理及保留策略见 [M07](verification/M07.md)。
+
 
 ---
 
@@ -1032,6 +1064,26 @@ M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接�
 
 工具输入：search_parts(keywords≤120, category 可选枚举, priced_only 严格 bool, limit 严格整数1..5)；get_part/get_reference_price(part_id UUID)。只查 active 公共商品，不开放 SQL/文件/网络/私人方案/兼容工具。工具结果可回显到发起者页面，不写聊天日志。多候选不会自动选一个。真实外部 Provider endpoint 适配器不属于本次用户选择的 Mock 交付。
 
+## M07 已实现：私有会话 API
+
+前缀 `/api/v1/ai/sessions`，全部需要登录；写操作需 CSRF。身份和租户取服务端上下文，其他人的标识统一 404。客户端不能指定内部 thread_id、owner 或 tenant。
+
+| 方法/路径（前缀后） | 请求与行为 |
+| --- | --- |
+| POST 空路径 | title（1–120 字）、client_request_id UUID；201，创建幂等 |
+| GET 空路径 | page/page_size，后者最多 30；本人当前租户活动会话 |
+| GET /{sid} | 会话、active_run、message_count；不包含内部线程或身份字段 |
+| GET /{sid}/messages | before UUID、limit 1–50；按时间/运行/序号排序，返回分页历史 |
+| POST /{sid}/messages | message（非空最多 1000 字）、client_request_id UUID；202，重复键同内容复用运行，异内容 409 |
+| GET /{sid}/runs/{rid} | 执行状态；仅 COMPLETED 返回完成结果 |
+| GET /{sid}/runs/{rid}/events | after_event_id；SSE 最多 15 秒，事件带 run_id、递增 ID |
+| POST /{sid}/runs/{rid}/cancel | 幂等取消；禁止迟到答案提交 |
+| DELETE /{sid} | expected_version 正整数；过期 409，成功标记删除并启动内容清理 |
+
+事件类型为 run.started、tool.started、tool.completed、message.delta、run.completed/run.failed。分片来自完成后保存的答案；断线 GET 状态/历史，不自动重复发送。运行截止 60 秒，崩溃运行在无工作锁时明确失败。每用户每租户最多 30 活动会话、每会话 100 运行；数据库准入全局 4 / 租户 2 / 用户 1 活动运行。单会话一个活动运行。所有 AI 写入请求体最多 8 KiB。
+
+原 M06 无状态 `/api/v1/ai/chat` 保留兼容；页面改用 M07 会话界面。删除保留及维护策略见 README。
+
 
 ---
 
@@ -1173,6 +1225,14 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 
 每用户10次/分钟且并发1、每租户30次/分钟且并发2、全局60次/分钟且并发4，窗口键容量2048。限流器仅进程内，当前必须单进程使用；多 worker/实例前需要共享配额。重启清空窗口，不宣称生产抗滥用能力。聊天不持久化；切换身份清空客户端结果；报价展示由真实工具输出生成，不采信模型的任意价格文字。实际模型能力/费用/token 限制需要以后接入真实 Provider 时另验。
 
+## M07 已落实边界（Mock）
+
+所有会话/运行/事件/历史路由以当前认证用户和租户过滤；流式轮询、工具事件写入与完成提交重新校验身份。撤销成员资格后关闭流且拒绝后续访问。内部线程不返回前端；反序列化关闭 pickle fallback，限制允许模块，外部 tracing 关闭。
+
+上下文引用还须匹配当前 session 的已完成运行及其报价商品；污染 checkpoint 中的跨会话运行引用不能借用私人状态。上下文最多最近六条问题与上一有效商品，历史分页不等于无限模型记忆。
+
+取消/删除通过数据库状态及同一会话锁隔离迟到提交；删除内容失败可重试且不阻塞其他删除项。数据库并发控制跨进程，频率限制仍沿用 M06 进程内实现，不能称作生产分布式配额。日志仅固定错误类别，不记录私有问句/异常原文。完整测试与限制见 [M07](verification/M07.md)。
+
 
 ---
 
@@ -1313,16 +1373,18 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 **依赖**：M06。**学习**：LangGraph Thread、PostgresSaver、短期记忆、状态复原、流式 SSE、取消与错误恢复。
 
 **实施任务**
-- [ ] 建 chat_session/消息索引，API 创建/列表/历史/删除；内部 thread_id 由服务器生成。
-- [ ] 接 LangGraph 持久化 checkpointer；同 session 连续会话，不同 session 不串台。
-- [ ] SSE 提供 message.delta、tool.started/completed、run.completed/failed；断线不重复写变更。
-- [ ] 重启后可继续会话；会话历史/工具轨迹可定位。
-- [ ] 同租户 user A 与 user B、跨租户、篡改 session_id 进行安全回归。
-- [ ] 会话截断/摘要策略；短期不做无限长期记忆。
+- [x] 建 chat_session/消息索引，API 创建/列表/历史/删除；内部 thread_id 由服务器生成。
+- [x] 接 LangGraph 持久化 checkpointer；同 session 连续会话，不同 session 不串台。
+- [x] SSE 提供 message.delta、tool.started/completed、run.completed/failed；断线不重复写变更。
+- [x] 重启后可继续会话；会话历史/工具轨迹可定位。
+- [x] 同租户 user A 与 user B、跨租户、篡改 session_id 进行安全回归。
+- [x] 会话截断/摘要策略；短期不做无限长期记忆。
 
 **练习**：画出 `chat_session -> thread_id -> checkpoint`；亲自关闭服务再恢复会话。
 
 **验收门槛**：跨用户会话不可读取；多会话 context 隔离；服务重启仍可延续；SSE 有正确终态。
+
+实际验收：[M07 Mock 记录](verification/M07.md)。上下文采用最近六条问题与上一件完成报价商品的有界策略。真实模型仍未接入；下一步建议补齐 M08 Agent 工具接入。
 
 ## M08｜兼容性规则与可信规格补全
 **依赖**：M04（建议 M07 后实施）。**学习**：规则引擎设计、三态逻辑、可信数据来源、单元测试参数化。
@@ -1731,7 +1793,7 @@ cd frontend && npm run typecheck && npm run test
 
 # 11｜实施计划修订与业务契约
 
-修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则/规格审核机制/工作台已验收（真实证据仅 CPU socket）；M06 Mock 只读目录助手已验收（真实模型未接入）；M07 等后续尚未实施。
+修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则/规格审核机制/工作台已验收（真实证据仅 CPU socket）；M06 Mock 只读目录助手已验收（真实模型未接入）；M07 Mock 持久化会话已验收；M09–M12 尚未实施。
 
 本文件补充并修订原交接计划。与其他文档冲突时，以本文件对应条款为准；实施各阶段时同步更新具体接口、迁移和测试。原始数据及历史 USD 口径不变。
 
@@ -1805,7 +1867,7 @@ cd frontend && npm run typecheck && npm run test
 - 建议执行顺序：M00 → M01 → M02 → M03 → M04 → M05 → M08 → M06 → M07 → M10 → M09 → M11 → M12。
 - M08 提前时只交付规则、规格补充和手动工作台；Agent 工具接入在 M06/M07 完成后、M10 前实施。M10 不依赖 RAG；M11 依赖 M09 和 M10。
 - 编号保持不变。因执行顺序调整，V0.2 发布门槛包含 M05–M08，V0.3 包含 M09–M10；V0.1 和 V1.0 不变。
-- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则与工作台已验收；M06 Mock 只读目录助手已验收；真实模型接入、M07、M09–M12 及 M08 Agent 接入尚未实施。
+- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则与工作台已验收；M06 Mock 只读目录助手已验收；M07 Mock 持久化会话已验收；真实模型接入、M09–M12 及 M08 Agent 接入尚未实施。
 
 ## 9. 修订对应关系
 

@@ -313,3 +313,89 @@ class PartSpecOverride(Base):
     version: Mapped[int] = mapped_column(Integer)
     supersedes_id: Mapped[UUID | None] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_session"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "owner_user_id", "create_request_id"),
+        CheckConstraint("version > 0"),
+        CheckConstraint("status IN ('active','deleted')"),
+        CheckConstraint("cleanup_status IN ('NONE','PENDING','DONE')"),
+        Index("ix_chat_session_owner", "tenant_id", "owner_user_id", "created_at"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenant.id"))
+    owner_user_id: Mapped[UUID] = mapped_column(ForeignKey("user_account.id"))
+    create_request_id: Mapped[UUID] = mapped_column(Uuid)
+    thread_id: Mapped[str] = mapped_column(String(36), unique=True)
+    title: Mapped[str] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    cleanup_status: Mapped[str] = mapped_column(String(20), default="NONE")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ChatRun(Base):
+    __tablename__ = "chat_run"
+    __table_args__ = (
+        UniqueConstraint("session_id", "client_request_id"),
+        UniqueConstraint("id", "session_id"),
+        CheckConstraint("status IN ('RUNNING','COMPLETED','FAILED','CANCELLED')"),
+        CheckConstraint("last_event_id >= 0"),
+        Index(
+            "uq_chat_run_active",
+            "session_id",
+            unique=True,
+            postgresql_where=text("status = 'RUNNING'"),
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    session_id: Mapped[UUID] = mapped_column(ForeignKey("chat_session.id"), index=True)
+    client_request_id: Mapped[UUID] = mapped_column(Uuid)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20))
+    result: Mapped[dict | None] = mapped_column(JSONB)
+    error_code: Mapped[str | None] = mapped_column(String(40))
+    last_event_id: Mapped[int] = mapped_column(Integer, default=0)
+    deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_message"
+    __table_args__ = (
+        UniqueConstraint("run_id", "sequence"),
+        ForeignKeyConstraint(["run_id", "session_id"], ["chat_run.id", "chat_run.session_id"]),
+        CheckConstraint("role IN ('user','assistant')"),
+        CheckConstraint("status IN ('RUNNING','COMPLETED','FAILED','CANCELLED')"),
+        CheckConstraint("sequence IN (1,2)"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    session_id: Mapped[UUID] = mapped_column(ForeignKey("chat_session.id"), index=True)
+    run_id: Mapped[UUID] = mapped_column(Uuid)
+    sequence: Mapped[int] = mapped_column(Integer)
+    role: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20))
+    content: Mapped[str] = mapped_column(Text)
+    payload: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ChatEvent(Base):
+    __tablename__ = "chat_event"
+    __table_args__ = (
+        CheckConstraint("event_id > 0"),
+        CheckConstraint(
+            "kind IN ('run.started','tool.started','tool.completed',"
+            "'message.delta','run.completed','run.failed')"
+        ),
+    )
+    run_id: Mapped[UUID] = mapped_column(ForeignKey("chat_run.id"), primary_key=True)
+    event_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(30))
+    data: Mapped[dict] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

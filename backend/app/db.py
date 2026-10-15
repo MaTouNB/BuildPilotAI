@@ -21,4 +21,4 @@ def make_engine(settings: Settings | None = None, *, schema: str | None = None) 
         if not schema.replace("_", "").isalnum():
             raise ValueError("Invalid schema identifier")
         options["options"] = f"-c search_path={schema}"
-    return create_engine(url, pool_pre_ping=True, connect_args=options)
+    return create_engine(url, pool_pre_ping=True, pool_timeout=2, connect_args=options)

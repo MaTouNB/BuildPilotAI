@@ -32,3 +32,6 @@ docs/verification/M08-*.jpg
 
 # M06 local authenticated browser proof; never publish account/tenant screenshots.
 docs/verification/M06-*.jpg
+
+# M07 private conversation/browser proof is local only.
+docs/verification/M07-*.jpg

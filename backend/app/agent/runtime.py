@@ -42,7 +42,7 @@ async def invoke_tool(tool, parsed):
     return await asyncio.wait_for(asyncio.shield(task), TOOL_TIMEOUT)
 
 
-async def run(provider, tools, message):
+async def run(provider, tools, message, *, emit=None):
     messages = [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=message)]
     trace, quotes, candidates = [], [], []
     used, ids = 0, set()
@@ -80,6 +80,11 @@ async def run(provider, tools, message):
                             parsed = tool.args_schema.model_validate(call["args"])
                         except ValidationError as exc:
                             raise HTTPException(422, "模型工具参数不合法") from exc
+                        if emit:
+                            emit(
+                                "tool.started",
+                                {"name": call["name"], "arguments": parsed.model_dump(mode="json")},
+                            )
                         started = monotonic()
                         # A new DB session is created inside the worker. No shared ORM session.
                         try:
@@ -99,6 +104,8 @@ async def run(provider, tools, message):
                                 "result": result,
                             }
                         )
+                        if emit:
+                            emit("tool.completed", trace[-1])
                         if call["name"] == "get_reference_price" and not result.get("error"):
                             quotes.append(result)
                         if call["name"] == "search_parts":
