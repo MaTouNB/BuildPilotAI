@@ -204,3 +204,15 @@ M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接�
 - 不存在、其他用户、其他租户的方案统一404。无有效会话401，CSRF/非受信来源/租户选择拒绝403，避免泄漏其他资源存在性。
 - UI未确认身份前不挂载工作台；退出、切租户、401清除旧选择并卸载编辑器，旧请求不能覆盖新身份。普通页面刷新使用Cookie向/me恢复，不把密码或登录令牌写浏览器持久存储。
 - 没有注册、密码重置、MFA、管理成员UI或聊天资源；M07聊天必须复用同一身份与归属边界，不能宣称当前已有聊天ACL。
+
+
+## M08 当前兼容报告契约（优先于上方规划）
+
+- `GET /api/v1/builds/{id}/compatibility?expected_version=N`：只读版本绑定报告；登录并匹配当前租户、创建者、draft 方案。匿名 401、外部归属/归档/不存在 404、版本不同 409、无效输入 422。
+- `POST /api/v1/builds/{id}/check`：相同报告，body `{ "expected_version": N }`；需会话 CSRF，不需幂等键，不修改 Build 或报价快照。
+- 返回 build_id/build_version、checked_at、ruleset_version=m08.1、checked_rules_status、rules、uncovered_checks。rules 含 rule_id/title/status、evidence、compared_values、missing_fields、issues、explanation。来源审核者不输出。仅返回当前规则相关的已批准证据，冲突证据也保留；没有已批准证据时明确 UNKNOWN。
+- CPU_SOCKET、MEMORY_DDR、GPU_LENGTH 三规则；任一 FAIL 汇总 FAIL，否则 UNKNOWN 优先，否则 PASS。缺 GPU 也 UNKNOWN，不假设有可用集显；不扩大整机兼容宣称。
+- 报告不写数据库；后续审核可改变同一 Build 版本的报告。使用证据记录 ID/版本及规则集定位判定基础。方案 JSON 的 checked_rules_status 现在为实际三态结果；写操作幂等重放保留原响应状态，最新报告需重新查询。
+- 读取报告短暂锁方案，单条 SQL 读取配件与审核证据；不发起外网抓取。不开放规格写接口，租户 admin 也不自动获得全局目录审核权。
+
+尺寸审核值限制为普通十进制字符串（最多 4 位整数、6 位小数），范围 (0,3000] mm；不接受科学计数法或无单位输入，不经浮点或 Decimal 上下文舍入后判定。

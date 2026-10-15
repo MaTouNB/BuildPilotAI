@@ -104,3 +104,9 @@ input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px 
 .account-bar > span { min-width: 0; overflow-wrap: anywhere; }
 .account-bar label { min-width: 0; max-width: 100%; }
 .account-bar select { min-width: 0; }
+
+.compatibility-report { border: 1px solid var(--border, #d8e2ec); border-radius: 12px; padding: 18px; margin: 20px 0; overflow-wrap: anywhere; }
+.compatibility-rules { list-style: none; padding: 0; display: grid; gap: 14px; }
+.compatibility-rules > li { border-top: 1px solid #d8e2ec; padding-top: 12px; }
+.compatibility-report details { margin: 10px 0; }
+.compatibility-report summary { cursor: pointer; }

@@ -5,6 +5,7 @@ import Modal from 'antd/es/modal'
 import Tag from 'antd/es/tag'
 import { authenticatedFetch, type Page, type Part } from './api'
 import { useResource } from './useResource'
+import CompatibilityReport from './CompatibilityReport'
 export type BuildItem = { slot: string; part_id: string; part_name: string; quantity: number; part_price_id: string | null; price_snapshot_usd: string | null; currency: string | null; source_name: string | null; dataset_updated_at: string | null; subtotal_usd: string | null }
 export type Build = { id: string; name: string; purpose: string; budget_amount: string | null; budget_currency: string; version: number; status: string; items: BuildItem[]; total_usd: string; price_is_complete: boolean; build_is_complete: boolean; total_is_complete: boolean; over_budget: boolean; missing_components: string[]; unpriced_slots: string[]; pending_requirements: string[]; checked_rules_status: string }
 type Pending = { title: string; before: string; after: string; method: string; path: string; body: Record<string, unknown>; key: string }
@@ -45,8 +46,9 @@ function BuildEditor({ id, attempt, stage }: { id: string; attempt: number; stag
   const build = resource.data
   return <section className="build-editor"><div className="panel-heading"><div><h2>{build.name}</h2><p className="result-meta">版本 {build.version} · 当前账号的私人方案</p></div><Button danger onClick={() => stage({ title: '确认归档方案', before: `${build.name}（可编辑）`, after: '归档，退出活动方案列表；数据保留', method: 'DELETE', path: `/builds/${id}`, body: { expected_version: build.version } })}>归档方案</Button></div>
     <div className="build-summary"><h3>{build.total_is_complete ? '完整整机历史参考总价' : '已报价小计'}</h3><strong>USD {build.total_usd}</strong><p>USD 历史参考价 / 数据集最后更新：{[...new Set(build.items.map(item => item.dataset_updated_at).filter(Boolean))].sort().join('、') || '尚无报价快照'}</p><p>按保存的历史价快照计算，不是当前市价。</p><Tag color={build.price_is_complete ? 'success' : 'warning'}>{build.price_is_complete ? '已选条目价格完整' : '条目价格不完整'}</Tag><Tag color={build.build_is_complete ? 'success' : 'warning'}>{build.build_is_complete ? '组件完整' : '组件不完整'}</Tag><p>预算：{build.budget_amount === null ? '未设置' : `USD ${build.budget_amount}`}</p>{build.over_budget && <Alert type="warning" title="已报价小计超出预算；仍可保存草稿" />}
-      {build.missing_components.length > 0 && <p>缺少必需组件：{build.missing_components.map(slot => labels[slot]).join('、')}</p>}{build.unpriced_slots.length > 0 && <p>缺价条目：{build.unpriced_slots.map(slot => labels[slot]).join('、')}</p>}{build.pending_requirements.map(message => <p key={message}>{message}</p>)}<p>兼容性：UNKNOWN，尚未执行兼容规则。组件与价格完整也不代表兼容。</p>
+      {build.missing_components.length > 0 && <p>缺少必需组件：{build.missing_components.map(slot => labels[slot]).join('、')}</p>}{build.unpriced_slots.length > 0 && <p>缺价条目：{build.unpriced_slots.map(slot => labels[slot]).join('、')}</p>}{build.pending_requirements.map(message => <p key={message}>{message}</p>)}
     </div>
+    <CompatibilityReport key={`compatibility:${build.id}:${build.version}`} id={build.id} version={build.version} />
     <form key={`${build.id}-${build.version}`} className="build-meta" aria-label="方案信息" onSubmit={event => {
       event.preventDefault(); const form = new FormData(event.currentTarget)
       const name = String(form.get('name') ?? '').trim(), purpose = String(form.get('purpose') ?? ''), budget = String(form.get('budget') ?? '') || null

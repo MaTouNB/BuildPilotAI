@@ -13,6 +13,7 @@ from sqlalchemy import func, select, text
 
 from app.auth import Auth, resolve
 from app.catalog import DB, Category, get_part
+from app.compatibility import report
 from app.etl.source import fingerprint
 from app.models import Build, BuildItem, BuildRequest, PartPrice
 
@@ -88,7 +89,7 @@ class Result(BaseModel):
     missing_components: list[str]
     unpriced_slots: list[str]
     pending_requirements: list[str]
-    checked_rules_status: Literal["UNKNOWN"]
+    checked_rules_status: Literal["PASS", "FAIL", "UNKNOWN"]
 
 
 class Results(BaseModel):
@@ -157,7 +158,7 @@ def render(db, build):
         "missing_components": missing,
         "unpriced_slots": unpriced,
         "pending_requirements": pending,
-        "checked_rules_status": "UNKNOWN",
+        "checked_rules_status": report(db, build)["checked_rules_status"],
     }
 
 
@@ -373,3 +374,24 @@ def archive(build_id: UUID, data: Version, db: DB, key: Key, actor: Auth, reques
         return build
 
     return write(db, key, "DELETE", str(build_id), data, action, actor, request)
+
+
+@router.get("/{build_id}/compatibility")
+def compatibility_report(
+    build_id: UUID,
+    db: DB,
+    actor: Auth,
+    expected_version: Annotated[int, Query(ge=1)],
+):
+    # Serialize against build edits to bind the report to exactly this version.
+    db.execute(text("SET LOCAL lock_timeout = '5000'"))
+    db.execute(text("SET LOCAL statement_timeout = '5000'"))
+    build = owned(db, build_id, actor, lock=True)
+    if build.version != expected_version:
+        raise HTTPException(409, "方案版本变化，请刷新后重新检查")
+    return report(db, build)
+
+
+@router.post("/{build_id}/check")
+def check_build(build_id: UUID, data: Version, db: DB, actor: Auth):
+    return compatibility_report(build_id, db, actor, data.expected_version)

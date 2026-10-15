@@ -278,3 +278,38 @@ class LoginThrottle(Base):
     bucket: Mapped[str] = mapped_column(String(64), primary_key=True)
     attempts: Mapped[int] = mapped_column(Integer)
     window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PartSpecOverride(Base):
+    __tablename__ = "part_spec_override"
+    __table_args__ = (
+        UniqueConstraint("part_id", "field_name", "version"),
+        UniqueConstraint("id", "part_id", "field_name"),
+        ForeignKeyConstraint(
+            ["supersedes_id", "part_id", "field_name"],
+            [
+                "part_spec_override.id",
+                "part_spec_override.part_id",
+                "part_spec_override.field_name",
+            ],
+        ),
+        CheckConstraint("version > 0"),
+        CheckConstraint("review_status IN ('PENDING','APPROVED','REJECTED')"),
+        CheckConstraint("length(trim(reviewer)) > 0"),
+        CheckConstraint("length(trim(source_locator)) > 0"),
+        CheckConstraint("source_url LIKE 'https://%'"),
+        CheckConstraint("supersedes_id IS NULL OR supersedes_id <> id"),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    part_id: Mapped[UUID] = mapped_column(ForeignKey("hardware_part.id"), index=True)
+    field_name: Mapped[str] = mapped_column(String(50))
+    value: Mapped[str] = mapped_column(String(120))
+    unit: Mapped[str | None] = mapped_column(String(20))
+    source_url: Mapped[str] = mapped_column(Text)
+    source_locator: Mapped[str] = mapped_column(Text)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    review_status: Mapped[str] = mapped_column(String(20))
+    reviewer: Mapped[str] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(Integer)
+    supersedes_id: Mapped[UUID | None] = mapped_column(Uuid)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

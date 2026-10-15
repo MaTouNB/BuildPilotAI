@@ -1,6 +1,6 @@
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M05 登录与租户隔离）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M08 兼容规则与规格证据）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05、M08 已实现；验收结果见 docs/verification/。
 
 > **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，AI尚未实现。按修订后的阶段顺序逐关验收。
 
@@ -253,3 +253,24 @@ make dev
 - 不要把清洗数据当作 RAG 文档。**商品/价格 SQL 查询**；**说明书/FAQ 通过 RAG 检索**。
 - 初期部署采用模块化单体，后续需要时再拆异步任务和 Agent Runtime。
 - 开始时不需要任何付费 LLM：先使用可测试的 FakeModel/Mock 工具，直到 Agent 阶段再配置 LLM Key。
+
+
+## M08 兼容规则与规格证据
+
+运行 `make db-migrate` 后 `make dev`，登录装机工作台并选择方案即可查看报告。三条规则分别检查 CPU/主板插槽、内存/主板 DDR 代际、显卡长度/机箱标称空间。报告有来源、缺少证据、冲突与未覆盖项；支持重新检查。PASS 仅及已检查条件，不代表 BIOS 支持或整机兼容。
+
+新增迁移 `m08_001`，规格审计表 `part_spec_override` 只能追加。规格由本地运维审核，未开放 HTTP 写接口；真实目录本次仅补充用户明确批准的 CPU socket=AM5，其余未审核规格不参与计算。原始数据及报价快照不变。
+
+```bash
+make db-migrate
+# 先人工审核清单全部字段；不要将示例当成真实批准
+cd backend
+uv run --locked python -m app.spec_reviews ../data/reviews/m08-approved-specs.json
+# 回到项目根目录执行
+make check
+make check-db
+```
+
+清单为 JSON 数组，每条包含 id、part_id、field_name、value（字符串）、unit（mm 或 null）、source_url（HTTPS）、source_locator、retrieved_at（含时区）、review_status（PENDING/APPROVED/REJECTED）、reviewer、version、supersedes_id（可 null）。类别/字段词表见 app/compatibility.py；同商品同字段版本递增，固定 ID 相同内容重跑新增 0 条，禁止修改旧记录。私有清单被忽略，不随克隆附送；无清单仍可运行并得到 UNKNOWN。
+
+实际验证：后端 121、前端 26 项测试通过；[M08 验收](docs/verification/M08.md)、[学习笔记](docs/learning-notes/M08.md)。当前真实商品仍仅 CPU/GPU，缺主板等类别，不能验收完整真实配置。下一阶段按修订顺序为 M06；Agent 工具接入尚未实施。
