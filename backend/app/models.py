@@ -179,6 +179,7 @@ class UserAccount(Base):
     __tablename__ = "user_account"
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     username: Mapped[str] = mapped_column(String(100), unique=True)
+    password_hash: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20))
 
 
@@ -252,3 +253,28 @@ class BuildRequest(Base):
     fingerprint: Mapped[str] = mapped_column(String(64))
     response: Mapped[dict] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TenantMember(Base):
+    __tablename__ = "tenant_member"
+    __table_args__ = (CheckConstraint("role IN ('member','admin')"),)
+    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenant.id"), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_account.id"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20))
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_session"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_account.id"), index=True)
+    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenant.id"))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class LoginThrottle(Base):
+    __tablename__ = "login_throttle"
+    bucket: Mapped[str] = mapped_column(String(64), primary_key=True)
+    attempts: Mapped[int] = mapped_column(Integer)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

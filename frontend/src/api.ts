@@ -5,8 +5,18 @@ export type Source = { source_file: string; line_number: number; end_line_number
 export type Detail = Part & { specifications: Record<string, unknown>; sources: Source[]; source_count: number; evidence_limit: number; issues: { code: string; field: string; message: string }[] }
 export type Category = { id: string; name: string; count: number }
 export type Sources = { reviewed_parts: number; items: { name: string; dataset_updated_at: string; row_count: number }[] }
+let csrfToken: string | null = null
+export function setCsrfToken(value: string | null) { csrfToken = value }
+export async function authenticatedFetch(path: string, options: RequestInit = {}) {
+  const startedWithCsrf = csrfToken
+  const headers = new Headers(options.headers)
+  if (options.method && !['GET', 'HEAD'].includes(options.method) && csrfToken) headers.set('X-CSRF-Token', csrfToken)
+  const response = await fetch('/api/v1' + path, { ...options, headers, credentials: 'same-origin', signal: options.signal ?? AbortSignal.timeout(8000) })
+  if (response.status === 401 && path.startsWith('/builds') && csrfToken === startedWithCsrf) { setCsrfToken(null); window.dispatchEvent(new Event('buildpilot-auth-expired')) }
+  return response
+}
 export async function get<T>(path: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch('/api/v1' + path, { signal })
+  const response = await authenticatedFetch(path, { signal })
   if (!response.ok) throw new Error(`请求失败 (${response.status})`)
   return response.json() as Promise<T>
 }

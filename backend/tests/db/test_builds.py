@@ -1,22 +1,61 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import insert, select, update
 
-from app.builds import DEMO_TENANT, DEMO_USER, SLOTS
+from app.auth import HASHER
+from app.builds import SLOTS
 from app.config import Settings
 from app.main import create_app
-from app.models import Build, BuildItem, HardwarePart, PartPrice, RawImportRow, Tenant, UserAccount
+from app.models import (
+    Build,
+    BuildItem,
+    HardwarePart,
+    PartPrice,
+    RawImportRow,
+    Tenant,
+    TenantMember,
+    UserAccount,
+)
 
 pytestmark = pytest.mark.postgres
+DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000091")
+DEMO_USER = UUID("00000000-0000-4000-8000-000000000092")
+TEST_PASSWORD = "synthetic-regression-password"
+TEST_HASH = HASHER.hash(TEST_PASSWORD)
 
 
 def client_for(database, enabled=True):
-    return TestClient(create_app(Settings(_env_file=None, demo_enabled=enabled), engine=database))
+    client = TestClient(
+        create_app(Settings(_env_file=None, auth_cookie_secure=False), engine=database)
+    )
+    if enabled:
+        with database.begin() as db:
+            if db.scalar(select(UserAccount.id).where(UserAccount.id == DEMO_USER)) is None:
+                db.execute(insert(Tenant), dict(id=DEMO_TENANT, name="regression", status="active"))
+                db.execute(
+                    insert(UserAccount),
+                    dict(
+                        id=DEMO_USER,
+                        username="regression",
+                        password_hash=TEST_HASH,
+                        status="active",
+                    ),
+                )
+                db.execute(
+                    insert(TenantMember),
+                    dict(tenant_id=DEMO_TENANT, user_id=DEMO_USER, role="member", status="active"),
+                )
+        response = client.post(
+            "/api/v1/auth/login", json={"username": "regression", "password": TEST_PASSWORD}
+        )
+        assert response.status_code == 200, response.text
+        client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
+    return client
 
 
 def headers(key=None):
@@ -245,6 +284,8 @@ def test_concurrent_version_and_idempotent_create(catalog, database):
 
 
 def test_complete_eight_slots_decimal_and_memory_kit(catalog, database):
+    with client_for(database):
+        pass
     with database.begin() as db:
         build = Build(
             id=uuid4(),

@@ -114,3 +114,11 @@ build 带归属外键、draft/archived、version、USD 正数预算/null。build
 build_request 对(tenant_id,owner_user_id,request_key)唯一，保存请求内容指纹和事务完成响应。写事务使用请求键 advisory lock、build行锁、显式版本校验，选价复用ETL锁。幂等结果与业务变更一起提交；失败回滚两者。此表不是完整审批审计，M10另行实现。
 
 总价由读取快照Decimal计算，不存可被客户端覆盖的总价。quantity变化保留快照；替换不同商品取新快照。软归档不会删除条目/报价/幂等记录。M05将增加认证字段与完整ACL，并默认关闭Demo，不自动迁移归属。
+
+## M05 实现
+
+迁移 m05_001 仅给 user_account 增加nullable password_hash，并创建tenant_member（tenant_id+user_id复合主键，member/admin角色）、auth_session（token_hash主键，用户/租户外键及过期索引）、login_throttle（哈希桶和窗口计数）。Demo账号仍status=demo且无密码哈希，不能登录；迁移不重写任何Build归属。
+
+opaque令牌只在HttpOnly Cookie保存，数据库保存其SHA-256。身份解析联查会话、账号、租户及成员状态，写事务再次解析并锁定；不是依赖客户端传入的user_id/tenant_id。租户切换撤销旧令牌，防旧CSRF/旧会话继续访问。
+
+本地seed_accounts显式创建两个开发租户和三个随机密码账号，其中一个属于两租户。不会创建正式用户、重置已有密码或继承Demo清单。密码文件只在被忽略data/local/中，以O_EXCL和0600创建，失败不展示SQL参数或秘密。过期会话/限流桶的定期清理留至运维阶段。

@@ -15,7 +15,7 @@ describe('environment dashboard', () => {
     expect(await screen.findByText('API 已连接')).toBeInTheDocument()
     expect(await screen.findByText('数据库已连接')).toBeInTheDocument()
     expect(screen.getByText('USD 历史参考价')).toBeInTheDocument()
-    expect(screen.getByText(/单用户 Demo/)).toBeInTheDocument()
+    expect(screen.getByText(/开发环境状态/)).toBeInTheDocument()
     expect(fetch.mock.calls.map(call => call[0])).toEqual(['/health', '/ready'])
   })
 

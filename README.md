@@ -1,8 +1,8 @@
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M04 手动装机）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M05 登录与租户隔离）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M04 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05 已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，登录/AI尚未实现。按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，AI尚未实现。按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -24,7 +24,7 @@ make dev     # 同时启动前后端；Ctrl+C 停止两者
 - OpenAPI：http://127.0.0.1:8000/docs
 - 数据库：127.0.0.1:5433；密码只在本地 .env，脚本随机生成且不显示。
 
-前端通过 Vite 同源代理访问 /health、/ready、/api，不需要开放跨域。只绑定 loopback，当前是单用户 Demo，尚未启用认证，M04 业务 CRUD 只在本地 Demo 中开放。
+前端通过 Vite 同源代理访问 /health、/ready、/api，不需要开放跨域。只绑定loopback，M05装机工作台需要登录；原Demo方案保留原归属。公共目录仍可匿名浏览。
 
 ### 测试与检查
 
@@ -155,6 +155,8 @@ make check-db
 
 [M03 验收与限制](docs/verification/M03.md) · [M03 学习笔记](docs/learning-notes/M03.md) · [当前 API 契约](docs/04_API.md)
 
+> 以下为M04阶段说明。M05已替代Demo访问：现在必须登录，DEMO_ENABLED不再开放装机接口。
+
 ## M04 手动装机工作台
 
 ```bash
@@ -177,6 +179,30 @@ make check-db
 Demo只允许本地访问，并检查Host/Origin、拒绝跨站请求；所有本地操作者共享专用Demo身份，不能当作正式认证或多用户权限隔离。M05另行实现登录。不要用此开发模式发布到公网。
 
 [M04 验收记录](docs/verification/M04.md) · [M04 学习笔记](docs/learning-notes/M04.md) · [M04 API 契约](docs/04_API.md)
+
+## M05 登录与私人方案
+
+```bash
+make setup
+make db-up
+make db-migrate
+cd backend
+UV_CACHE_DIR=/tmp/buildpilot-uv-cache uv run --locked python -m app.seed_accounts
+cd ..
+make dev
+```
+
+已有.env需添加`AUTH_COOKIE_SECURE=false`后重启（仅本地HTTP）；Settings默认Secure=true。AUTH_ALLOWED_ORIGINS按JSON列表配置精确受信来源，默认本地5173/8000。开发模式不开放CORS或Demo权限绕过。
+
+种子命令创建两个开发租户、三个账号（dev-alice属于两租户，dev-bob属于A，dev-carol属于B）；随机密码只写入被忽略的`data/local/m05-accounts.json`，权限600，不打印。账号/输出存在时拒绝覆盖；不能用作密码重置。不要上传该文件。
+
+打开5173“装机工作台”登录。Cookie是HttpOnly/SameSite=Strict，密码和会话令牌不存localStorage；每次服务端校验账号、会话、租户成员状态。身份栏可切换有效租户和退出，私人方案只对所选租户内的创建者可见，其他用户/租户统一404。角色admin也没有自动读取他人私有数据的特权。
+
+原“M04 验收演示”仍归专用Demo，不会转给任何登录账号。新的登录演示方案单独保存，换租户/退出清空旧选择；未登录不挂载编辑器。既有Diff确认、版本和快照保护仍生效。
+
+`make check`与`make check-db`运行完整检查和权限回归。测试使用两租户三账号的合成fixtures，不依赖本地明文密码文件。没有开放注册、密码重置、MFA、聊天或AI。
+
+[M05 验收](docs/verification/M05.md) · [M05 学习笔记](docs/learning-notes/M05.md) · [当前身份/API契约](docs/04_API.md)
 
 ## 一句话目标
 
