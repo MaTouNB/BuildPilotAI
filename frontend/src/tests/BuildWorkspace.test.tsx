@@ -16,7 +16,7 @@ function api(initial?: Build, fail?: 'conflict' | 'network') {
       else if (options.method === 'DELETE') build = { ...build!, status: 'archived' }
       return { ok: true, json: async () => build }
     }
-    const data = url.includes('/parts?') ? { items: [{ id: 'cpu', name: 'Fixture CPU', price_usd: '10.25', price_metadata: { id: 'price', dataset_updated_at: '2025-07-23' } }], total: 1 }
+    const data = url.includes('/compatibility?') ? { build_id: id, build_version: build?.version ?? 1, ruleset_version: 'm08.1', checked_at: '2026-10-15T00:00:00Z', checked_rules_status: 'UNKNOWN', rules: [], uncovered_checks: ['BIOS'] } : url.includes('/parts?') ? { items: [{ id: 'cpu', name: 'Fixture CPU', price_usd: '10.25', price_metadata: { id: 'price', dataset_updated_at: '2025-07-23' } }], total: 1 }
       : url.includes('/builds?') ? { items: build && build.status !== 'archived' ? [build] : [], total: build && build.status !== 'archived' ? 1 : 0 }
       : build
     return { ok: true, json: async () => data }

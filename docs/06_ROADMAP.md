@@ -145,15 +145,19 @@
 **依赖**：M04（建议 M07 后实施）。**学习**：规则引擎设计、三态逻辑、可信数据来源、单元测试参数化。
 
 **实施任务**
-- [ ] 定义规则输出 PASS/FAIL/UNKNOWN，附 evidence 和 missing_fields。
-- [ ] 实现最少 CPU socket/主板、DDR 代际/主板、GPU 长度/机箱空间三类规则。
-- [ ] 通过手工审核的小型 enrichment 表补齐部分可信 CPU socket/主板 DDR/机箱显卡空间数据；记录来源/证据，不推断未证明的。
-- [ ] 装机工作台显示兼容报告；Agent 调用 `check_compatibility` 只报告工具输出，不擅自声称兼容。
-- [ ] 测试涵盖明确兼容、明确不兼容和证据不足。
+- [x] 定义规则输出 PASS/FAIL/UNKNOWN，附 evidence 和 missing_fields。
+- [x] 实现最少 CPU socket/主板、DDR 代际/主板、GPU 长度/机箱空间三类规则。
+- [x] 小型 enrichment 表及本地审核导入已实现，CPU socket=AM5 经用户批准入库。
+- [ ] 真实主板 DDR/机箱空间规格：目录尚无相应已批准商品，保留数据覆盖缺口；合成测试不计作真实补全。
+- [x] 装机工作台显示兼容报告；仅明确已检查规则结果。
+- [ ] Agent 调用 `check_compatibility`（按修订顺序延后至 M06/M07 完成）。
+- [x] 测试涵盖明确兼容、明确不兼容和证据不足。
 
 **练习**：写 10 组测试用例，解释为什么“未知 != 兼容”。
 
 **验收门槛**：已有证据的冲突可指出具体原因；没有数据的输出 UNKNOWN，绝不捏造硬件支持。
+
+实际结果：[M08 验收](verification/M08.md)。三规则/审核/报告通过，真实数据补全仅 CPU socket；Agent 接入及其他类别证据保留待办。
 
 ## M09｜真正从零构建 RAG 知识库
 **依赖**：M07；最好已完成 M08。**学习**：Chunking、Embedding、向量检索、pgvector、混合检索、文档证据、RAG 评估。

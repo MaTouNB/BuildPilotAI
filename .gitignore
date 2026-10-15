@@ -26,3 +26,6 @@ data/reviews/
 
 # Generated local development account secrets.
 data/local/
+
+# M08 local private-workspace verification screenshots
+docs/verification/M08-*.jpg

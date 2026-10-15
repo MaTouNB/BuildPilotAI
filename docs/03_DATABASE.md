@@ -122,3 +122,12 @@ build_request 对(tenant_id,owner_user_id,request_key)唯一，保存请求内�
 opaque令牌只在HttpOnly Cookie保存，数据库保存其SHA-256。身份解析联查会话、账号、租户及成员状态，写事务再次解析并锁定；不是依赖客户端传入的user_id/tenant_id。租户切换撤销旧令牌，防旧CSRF/旧会话继续访问。
 
 本地seed_accounts显式创建两个开发租户和三个随机密码账号，其中一个属于两租户。不会创建正式用户、重置已有密码或继承Demo清单。密码文件只在被忽略data/local/中，以O_EXCL和0600创建，失败不展示SQL参数或秘密。过期会话/限流桶的定期清理留至运维阶段。
+
+
+## M08 实际迁移：part_spec_override
+
+m08_001 接 m05_001。表包含 UUID id/part_id（hardware_part 外键）、field_name、value（字符串）、unit、source_url、source_locator、retrieved_at、review_status、reviewer、version、supersedes_id、created_at。同商品/字段/version 唯一；supersedes 复合外键确保同商品同字段，触发器确保指向早期版本且拒绝 UPDATE/DELETE。不会覆盖 hardware_part.specifications。
+
+本地 `python -m app.spec_reviews manifest.json` 验证类别、字段/单位/值、HTTPS 来源、定位/审核者、带时区非未来查阅时间。事务按商品加锁，按字段递增版本；同 ID 不同内容拒绝。PENDING/REJECTED 不参与计算/不隐藏既有批准，冲突批准返回 UNKNOWN；解决冲突需明确批准替代关系。数据库同时保留旧记录用于审计。
+
+数据库是本地运维信任边界；直连数据库的持有者有管理权，审核命令不是独立账号权限系统。没有对外开放审核写 API。真实 CPU 的 AM5 是本轮明确人工批准；主板/内存/机箱尚无真实审核证据。

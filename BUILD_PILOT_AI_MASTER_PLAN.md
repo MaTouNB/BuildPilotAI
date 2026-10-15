@@ -1,15 +1,15 @@
-# BuildPilot AI — 完整项目实施手册（M05 修订版）
+# BuildPilot AI — 完整项目实施手册（M08 修订版）
 
-2026-10-15：M00–M05 已验收；后续为设计稿。
+2026-10-15：M00–M05、M08 规则与工作台已验收；真实规格仅补充 CPU socket。其余及 Agent 接入为设计稿。
 
 
 ---
 
 <!-- 源文件：README.md -->
 
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M05 登录与租户隔离）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M08 兼容规则与规格证据）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05、M08 已实现；验收结果见 docs/verification/。
 
 > **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，AI尚未实现。按修订后的阶段顺序逐关验收。
 
@@ -264,13 +264,34 @@ make dev
 - 开始时不需要任何付费 LLM：先使用可测试的 FakeModel/Mock 工具，直到 Agent 阶段再配置 LLM Key。
 
 
+## M08 兼容规则与规格证据
+
+运行 `make db-migrate` 后 `make dev`，登录装机工作台并选择方案即可查看报告。三条规则分别检查 CPU/主板插槽、内存/主板 DDR 代际、显卡长度/机箱标称空间。报告有来源、缺少证据、冲突与未覆盖项；支持重新检查。PASS 仅及已检查条件，不代表 BIOS 支持或整机兼容。
+
+新增迁移 `m08_001`，规格审计表 `part_spec_override` 只能追加。规格由本地运维审核，未开放 HTTP 写接口；真实目录本次仅补充用户明确批准的 CPU socket=AM5，其余未审核规格不参与计算。原始数据及报价快照不变。
+
+```bash
+make db-migrate
+# 先人工审核清单全部字段；不要将示例当成真实批准
+cd backend
+uv run --locked python -m app.spec_reviews ../data/reviews/m08-approved-specs.json
+# 回到项目根目录执行
+make check
+make check-db
+```
+
+清单为 JSON 数组，每条包含 id、part_id、field_name、value（字符串）、unit（mm 或 null）、source_url（HTTPS）、source_locator、retrieved_at（含时区）、review_status（PENDING/APPROVED/REJECTED）、reviewer、version、supersedes_id（可 null）。类别/字段词表见 app/compatibility.py；同商品同字段版本递增，固定 ID 相同内容重跑新增 0 条，禁止修改旧记录。私有清单被忽略，不随克隆附送；无清单仍可运行并得到 UNKNOWN。
+
+实际验证：后端 121、前端 26 项测试通过；[M08 验收](docs/verification/M08.md)、[学习笔记](docs/learning-notes/M08.md)。当前真实商品仍仅 CPU/GPU，缺主板等类别，不能验收完整真实配置。下一阶段按修订顺序为 M06；Agent 工具接入尚未实施。
+
+
 ---
 
 <!-- 源文件：AGENTS.md -->
 
 # Codex 工作规范（必须遵守）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05 已验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05、M08 规则与工作台已验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
 
 ## 1. 工作模式
 - 每次只实施用户指定的 `Mxx` 阶段。不得主动跨越未完成里程碑，也不得一次“生成整个项目”。
@@ -746,6 +767,15 @@ opaque令牌只在HttpOnly Cookie保存，数据库保存其SHA-256。身份解�
 本地seed_accounts显式创建两个开发租户和三个随机密码账号，其中一个属于两租户。不会创建正式用户、重置已有密码或继承Demo清单。密码文件只在被忽略data/local/中，以O_EXCL和0600创建，失败不展示SQL参数或秘密。过期会话/限流桶的定期清理留至运维阶段。
 
 
+## M08 实际迁移：part_spec_override
+
+m08_001 接 m05_001。表包含 UUID id/part_id（hardware_part 外键）、field_name、value（字符串）、unit、source_url、source_locator、retrieved_at、review_status、reviewer、version、supersedes_id、created_at。同商品/字段/version 唯一；supersedes 复合外键确保同商品同字段，触发器确保指向早期版本且拒绝 UPDATE/DELETE。不会覆盖 hardware_part.specifications。
+
+本地 `python -m app.spec_reviews manifest.json` 验证类别、字段/单位/值、HTTPS 来源、定位/审核者、带时区非未来查阅时间。事务按商品加锁，按字段递增版本；同 ID 不同内容拒绝。PENDING/REJECTED 不参与计算/不隐藏既有批准，冲突批准返回 UNKNOWN；解决冲突需明确批准替代关系。数据库同时保留旧记录用于审计。
+
+数据库是本地运维信任边界；直连数据库的持有者有管理权，审核命令不是独立账号权限系统。没有对外开放审核写 API。真实 CPU 的 AM5 是本轮明确人工批准；主板/内存/机箱尚无真实审核证据。
+
+
 ---
 
 <!-- 源文件：docs/04_API.md -->
@@ -956,6 +986,18 @@ M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接�
 - 不存在、其他用户、其他租户的方案统一404。无有效会话401，CSRF/非受信来源/租户选择拒绝403，避免泄漏其他资源存在性。
 - UI未确认身份前不挂载工作台；退出、切租户、401清除旧选择并卸载编辑器，旧请求不能覆盖新身份。普通页面刷新使用Cookie向/me恢复，不把密码或登录令牌写浏览器持久存储。
 - 没有注册、密码重置、MFA、管理成员UI或聊天资源；M07聊天必须复用同一身份与归属边界，不能宣称当前已有聊天ACL。
+
+
+## M08 当前兼容报告契约（优先于上方规划）
+
+- `GET /api/v1/builds/{id}/compatibility?expected_version=N`：只读版本绑定报告；登录并匹配当前租户、创建者、draft 方案。匿名 401、外部归属/归档/不存在 404、版本不同 409、无效输入 422。
+- `POST /api/v1/builds/{id}/check`：相同报告，body `{ "expected_version": N }`；需会话 CSRF，不需幂等键，不修改 Build 或报价快照。
+- 返回 build_id/build_version、checked_at、ruleset_version=m08.1、checked_rules_status、rules、uncovered_checks。rules 含 rule_id/title/status、evidence、compared_values、missing_fields、issues、explanation。来源审核者不输出。仅返回当前规则相关的已批准证据，冲突证据也保留；没有已批准证据时明确 UNKNOWN。
+- CPU_SOCKET、MEMORY_DDR、GPU_LENGTH 三规则；任一 FAIL 汇总 FAIL，否则 UNKNOWN 优先，否则 PASS。缺 GPU 也 UNKNOWN，不假设有可用集显；不扩大整机兼容宣称。
+- 报告不写数据库；后续审核可改变同一 Build 版本的报告。使用证据记录 ID/版本及规则集定位判定基础。方案 JSON 的 checked_rules_status 现在为实际三态结果；写操作幂等重放保留原响应状态，最新报告需重新查询。
+- 读取报告短暂锁方案，单条 SQL 读取配件与审核证据；不发起外网抓取。不开放规格写接口，租户 admin 也不自动获得全局目录审核权。
+
+尺寸审核值限制为普通十进制字符串（最多 4 位整数、6 位小数），范围 (0,3000] mm；不接受科学计数法或无单位输入，不经浮点或 Decimal 上下文舍入后判定。
 
 
 ---
@@ -1239,15 +1281,19 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 **依赖**：M04（建议 M07 后实施）。**学习**：规则引擎设计、三态逻辑、可信数据来源、单元测试参数化。
 
 **实施任务**
-- [ ] 定义规则输出 PASS/FAIL/UNKNOWN，附 evidence 和 missing_fields。
-- [ ] 实现最少 CPU socket/主板、DDR 代际/主板、GPU 长度/机箱空间三类规则。
-- [ ] 通过手工审核的小型 enrichment 表补齐部分可信 CPU socket/主板 DDR/机箱显卡空间数据；记录来源/证据，不推断未证明的。
-- [ ] 装机工作台显示兼容报告；Agent 调用 `check_compatibility` 只报告工具输出，不擅自声称兼容。
-- [ ] 测试涵盖明确兼容、明确不兼容和证据不足。
+- [x] 定义规则输出 PASS/FAIL/UNKNOWN，附 evidence 和 missing_fields。
+- [x] 实现最少 CPU socket/主板、DDR 代际/主板、GPU 长度/机箱空间三类规则。
+- [x] 小型 enrichment 表及本地审核导入已实现，CPU socket=AM5 经用户批准入库。
+- [ ] 真实主板 DDR/机箱空间规格：目录尚无相应已批准商品，保留数据覆盖缺口；合成测试不计作真实补全。
+- [x] 装机工作台显示兼容报告；仅明确已检查规则结果。
+- [ ] Agent 调用 `check_compatibility`（按修订顺序延后至 M06/M07 完成）。
+- [x] 测试涵盖明确兼容、明确不兼容和证据不足。
 
 **练习**：写 10 组测试用例，解释为什么“未知 != 兼容”。
 
 **验收门槛**：已有证据的冲突可指出具体原因；没有数据的输出 UNKNOWN，绝不捏造硬件支持。
+
+实际结果：[M08 验收](verification/M08.md)。三规则/审核/报告通过，真实数据补全仅 CPU socket；Agent 接入及其他类别证据保留待办。
 
 ## M09｜真正从零构建 RAG 知识库
 **依赖**：M07；最好已完成 M08。**学习**：Chunking、Embedding、向量检索、pgvector、混合检索、文档证据、RAG 评估。
@@ -1638,7 +1684,7 @@ cd frontend && npm run typecheck && npm run test
 
 # 11｜实施计划修订与业务契约
 
-修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；后续尚未实施。
+修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则/规格审核机制/工作台已验收（真实证据仅 CPU socket）；Agent 等后续尚未实施。
 
 本文件补充并修订原交接计划。与其他文档冲突时，以本文件对应条款为准；实施各阶段时同步更新具体接口、迁移和测试。原始数据及历史 USD 口径不变。
 
@@ -1712,7 +1758,7 @@ cd frontend && npm run typecheck && npm run test
 - 建议执行顺序：M00 → M01 → M02 → M03 → M04 → M05 → M08 → M06 → M07 → M10 → M09 → M11 → M12。
 - M08 提前时只交付规则、规格补充和手动工作台；Agent 工具接入在 M06/M07 完成后、M10 前实施。M10 不依赖 RAG；M11 依赖 M09 和 M10。
 - 编号保持不变。因执行顺序调整，V0.2 发布门槛包含 M05–M08，V0.3 包含 M09–M10；V0.1 和 V1.0 不变。
-- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M06–M12 尚未实施。
+- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则与工作台已验收；M06/M07、M09–M12 及 M08 Agent 接入尚未实施。
 
 ## 9. 修订对应关系
 
