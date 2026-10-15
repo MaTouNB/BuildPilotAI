@@ -122,3 +122,14 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 
 ## 10. 运行时观测（M11）
 记录 request_id、trace_id、session_id、model、工具名、耗时、token/cost（可用时）、结果状态、失败原因。Langfuse 可作选配；不得把真实密钥或全部用户私聊无条件发送到第三方观测服务。
+
+
+## M06 当前实现与部署边界
+
+2026-10-15 用户明确选择 Mock-only。实现使用 LangChain Core StructuredTool、AIMessage/ToolMessage 和显式受限循环；没有实际 LLM、create_agent 或 LangGraph，没有外部 endpoint 适配器。只有三个公共目录只读工具，私有方案/兼容/RAG/变更工具仍待后续授权阶段。
+
+鉴权/CSRF 在模型执行前完成。模型参数不包含身份。工具各开独立只读事务，statement_timeout 1s/lock_timeout 0.5s；异步运行模型 1s/工具 1.5s/整体 6s，最多 4 次工具调用，4 个未结束工具工作线程槽。被取消的 HTTP/超时不能杀死 Python 线程，线程完成前不释放槽。源数据库连接池等待仍由底层连接池约束，不宣称被 SQL timeout 覆盖。
+
+请求 body 8KB、问题1000字符；消息内容上下文32KB、模型内容2KB、单工具结果16KB、最终结果64KB。异常只返回稳定错误，不记录问题、完整模型消息或凭据。LangSmith tracing 在运行作用域强制关闭，包括主机已有 tracing 环境变量的情况。
+
+每用户10次/分钟且并发1、每租户30次/分钟且并发2、全局60次/分钟且并发4，窗口键容量2048。限流器仅进程内，当前必须单进程使用；多 worker/实例前需要共享配额。重启清空窗口，不宣称生产抗滥用能力。聊天不持久化；切换身份清空客户端结果；报价展示由真实工具输出生成，不采信模型的任意价格文字。实际模型能力/费用/token 限制需要以后接入真实 Provider 时另验。

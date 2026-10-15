@@ -12,6 +12,8 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.agent.routes import configure as configure_agent
+from app.agent.routes import router as agent_router
 from app.auth import router as auth_router
 from app.builds import router as builds_router
 from app.catalog import router
@@ -35,20 +37,43 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
         if engine is None and application.state.catalog_engine is not None:
             application.state.catalog_engine.dispose()
 
-    application = FastAPI(title="BuildPilot AI", version="0.5.0", lifespan=lifespan)
+    application = FastAPI(title="BuildPilot AI", version="0.6.0", lifespan=lifespan)
     application.state.engine_lock = Lock()
     application.state.settings = config
     application.state.catalog_engine = engine
     application.include_router(router)
     application.include_router(builds_router)
     application.include_router(auth_router)
+    application.include_router(agent_router)
+    configure_agent(application)
 
     @application.middleware("http")
     async def request_id(request: Request, call_next):
         request.state.request_id = str(uuid4())
+        if request.url.path == "/api/v1/ai/chat":
+            # Bound the raw JSON body before parsing, including chunked requests.
+            body = bytearray()
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > 8192:
+                    response = JSONResponse(
+                        status_code=413,
+                        content={
+                            "error": {
+                                "code": "INPUT_TOO_LARGE",
+                                "message": "助手请求过大",
+                                "request_id": request.state.request_id,
+                                "details": None,
+                            }
+                        },
+                    )
+                    response.headers["Cache-Control"] = "no-store"
+                    response.headers["X-Request-ID"] = request.state.request_id
+                    return response
+                body.extend(chunk)
+            request._body = bytes(body)
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
-        if request.url.path.startswith(("/api/v1/auth", "/api/v1/builds")):
+        if request.url.path.startswith(("/api/v1/auth", "/api/v1/builds", "/api/v1/ai")):
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -79,6 +104,8 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
                 422: "INVALID_QUERY",
                 429: "RATE_LIMITED",
                 503: "DATABASE_UNAVAILABLE",
+                502: "AGENT_EXECUTION_FAILED",
+                504: "AGENT_TIMEOUT",
             }.get(exc.status_code, "HTTP_ERROR"),
             str(exc.detail),
             headers=exc.headers,

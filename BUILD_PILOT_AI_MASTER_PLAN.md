@@ -1,17 +1,17 @@
-# BuildPilot AI — 完整项目实施手册（M08 修订版）
+# BuildPilot AI — 完整项目实施手册（M06 Mock 修订版）
 
-2026-10-15：M00–M05、M08 规则与工作台已验收；真实规格仅补充 CPU socket。其余及 Agent 接入为设计稿。
+2026-10-15：M00–M06（M06 为 Mock）、M08 规则与工作台已验收；真实模型/M07 等后续为设计稿。
 
 
 ---
 
 <!-- 源文件：README.md -->
 
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M08 兼容规则与规格证据）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M06 Mock 只读目录助手）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05、M08 已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M06（M06 为 Mock）、M08 已实现；验收结果见 docs/verification/。
 
-> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，AI尚未实现。按修订后的阶段顺序逐关验收。
+> **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，M06 Mock 只读目录助手已实现；尚未接真实模型。按修订后的阶段顺序逐关验收。
 
 ## 本地运行（M00）
 
@@ -285,13 +285,35 @@ make check-db
 实际验证：后端 121、前端 26 项测试通过；[M08 验收](docs/verification/M08.md)、[学习笔记](docs/learning-notes/M08.md)。当前真实商品仍仅 CPU/GPU，缺主板等类别，不能验收完整真实配置。下一阶段按修订顺序为 M06；Agent 工具接入尚未实施。
 
 
+## M06 Mock 只读目录助手
+
+用户已选择先用 Mock 模式。无需 API Key，`make dev` 后登录，在配件目录或装机工作台的「历史目录助手」查询「查询 RTX 3060 的历史参考价」。宽屏为右侧面板，窄屏在正文下方。模拟模型只解析有限型号，但会实际调用数据库目录工具，不显示固定假报价。
+
+LangChain Core 1.6.10 / LangSmith 0.14.8 已锁定；运行时显式关闭外部 tracing。本版只支持 `AGENT_PROVIDER=mock`，不读取密钥、不访问外部模型 endpoint；真实 OpenAI-compatible 适配器待另行授权和验证，未实现。
+
+```bash
+make setup      # 更新锁定依赖；保留已有 .env
+make db-up
+make dev
+# 另一个终端验证
+make check
+make check-db
+```
+
+仅新环境没有账号时，按上方 M05 的本地账号初始化说明操作，已有账号不重建。不要把账号文件或截图提交公共仓库。
+
+只开放 search_parts/get_part/get_reference_price。只提交本轮问题，不保存聊天；无多轮、RAG、兼容工具或修改装机能力。价格与来源由后端真实工具结果提供；缺价不填零，没有工具证据不报价。取消/失败不自动重试，切换身份清空旧结果。输入、超时、工具次数、上下文/输出和单进程频率/并发均受限；生产多实例配额尚未实现。
+
+实际结果：后端 149 项、前端 34 项通过，浏览器查询得到 USD 299.97 / 数据集 2025-07-23 / 原始第 2 行；[M06 验收](docs/verification/M06.md)、[学习笔记](docs/learning-notes/M06.md)。下一阶段建议 M07，本次不自动执行。
+
+
 ---
 
 <!-- 源文件：AGENTS.md -->
 
 # Codex 工作规范（必须遵守）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M05、M08 规则与工作台已验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M06（M06 Mock）、M08 规则与工作台已验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
 
 ## 1. 工作模式
 - 每次只实施用户指定的 `Mxx` 阶段。不得主动跨越未完成里程碑，也不得一次“生成整个项目”。
@@ -1000,6 +1022,17 @@ M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接�
 尺寸审核值限制为普通十进制字符串（最多 4 位整数、6 位小数），范围 (0,3000] mm；不接受科学计数法或无单位输入，不经浮点或 Decimal 上下文舍入后判定。
 
 
+## M06 实际接口：Mock 只读目录助手
+
+`POST /api/v1/ai/chat`，需要 M05 会话 + X-CSRF-Token，body 仅 `{ "message": "查询 RTX 3060 的历史参考价" }`。extra 字段拒绝，不接受客户端身份、provider、system prompt 或历史。原始 body ≤8KB，问题非空且 ≤1000 字符。响应 no-store，不持久化消息。
+
+返回 mode=mock、status（GROUNDED/UNQUOTABLE/NEEDS_SELECTION/NO_PRICE_EVIDENCE）、answer（后端证据模板）、quotes、candidates、tool_calls、historical_notice、persistence。tool_calls 为本次实际执行的白名单工具名称/合法参数/结果/耗时/状态，不是模型声称的轨迹。quotes 的非空价格是 Decimal 序列化字符串，携带 USD、历史价类型、数据集日期、源行/报价 ID、source_file/line_number/row_hash/source_url；没有已选价时 price_usd=null。
+
+错误：401 未登录、403 CSRF/来源校验拒绝、413 原始请求过大、422 参数/工具白名单或次数/上下文限制、429 频率/并发满（Retry-After）、502 模拟模型或工具执行失败、504 运行/单步超时。异常详情、模型原文、凭据和数据库地址不输出。
+
+工具输入：search_parts(keywords≤120, category 可选枚举, priced_only 严格 bool, limit 严格整数1..5)；get_part/get_reference_price(part_id UUID)。只查 active 公共商品，不开放 SQL/文件/网络/私人方案/兼容工具。工具结果可回显到发起者页面，不写聊天日志。多候选不会自动选一个。真实外部 Provider endpoint 适配器不属于本次用户选择的 Mock 交付。
+
+
 ---
 
 <!-- 源文件：docs/05_AGENT_RAG_SECURITY.md -->
@@ -1130,6 +1163,17 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 记录 request_id、trace_id、session_id、model、工具名、耗时、token/cost（可用时）、结果状态、失败原因。Langfuse 可作选配；不得把真实密钥或全部用户私聊无条件发送到第三方观测服务。
 
 
+## M06 当前实现与部署边界
+
+2026-10-15 用户明确选择 Mock-only。实现使用 LangChain Core StructuredTool、AIMessage/ToolMessage 和显式受限循环；没有实际 LLM、create_agent 或 LangGraph，没有外部 endpoint 适配器。只有三个公共目录只读工具，私有方案/兼容/RAG/变更工具仍待后续授权阶段。
+
+鉴权/CSRF 在模型执行前完成。模型参数不包含身份。工具各开独立只读事务，statement_timeout 1s/lock_timeout 0.5s；异步运行模型 1s/工具 1.5s/整体 6s，最多 4 次工具调用，4 个未结束工具工作线程槽。被取消的 HTTP/超时不能杀死 Python 线程，线程完成前不释放槽。源数据库连接池等待仍由底层连接池约束，不宣称被 SQL timeout 覆盖。
+
+请求 body 8KB、问题1000字符；消息内容上下文32KB、模型内容2KB、单工具结果16KB、最终结果64KB。异常只返回稳定错误，不记录问题、完整模型消息或凭据。LangSmith tracing 在运行作用域强制关闭，包括主机已有 tracing 环境变量的情况。
+
+每用户10次/分钟且并发1、每租户30次/分钟且并发2、全局60次/分钟且并发4，窗口键容量2048。限流器仅进程内，当前必须单进程使用；多 worker/实例前需要共享配额。重启清空窗口，不宣称生产抗滥用能力。聊天不持久化；切换身份清空客户端结果；报价展示由真实工具输出生成，不采信模型的任意价格文字。实际模型能力/费用/token 限制需要以后接入真实 Provider 时另验。
+
+
 ---
 
 <!-- 源文件：docs/06_ROADMAP.md -->
@@ -1251,16 +1295,19 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 **依赖**：M05。**学习**：Chat Model、tool schema、tool call -> tool result -> LLM 解释循环、Prompt 分层、模型的非确定性。
 
 **实施任务**
-- [ ] 创建支持 OpenAI-compatible endpoint 的 Model Provider；密钥只读环境变量，可 Mock。
-- [ ] 使用现行 LangChain 工具接口实现 `search_parts/get_part/get_reference_price`。
-- [ ] 做最简单的聊天后端 + Web 侧边助手；支持“查询一款显卡的历史参考价”。
-- [ ] Tool Gateway 对 limit/查询参数校验；禁止模型直接执行 SQL；在模型错误时清楚报错。
-- [ ] Mock LLM 自动化测试验证工具参数、结果回显和模型未调用工具时的处理。
-- [ ] Prompt 明确价格口径及报价不可编造；来源信息由后端真实数据补充。
+- [x] 用户选择 Mock：Provider 协议与确定性模拟器；LangChain 消息格式/工具 schema。
+- [ ] 实际 OpenAI-compatible endpoint 适配器：本次未启用，待另行选择模型与凭据后实施。
+- [x] 使用现行 LangChain 工具接口实现 `search_parts/get_part/get_reference_price`。
+- [x] 做最简单的聊天后端 + Web 侧边助手；支持“查询一款显卡的历史参考价”。
+- [x] Tool Gateway 对 limit/查询参数校验；禁止模型直接执行 SQL；在模型错误时清楚报错。
+- [x] Mock LLM 自动化测试验证工具参数、结果回显和模型未调用工具时的处理。
+- [x] Prompt 明确价格口径及报价不可编造；来源信息由后端真实数据补充。
 
 **练习**：对比“只调 LLM”和“LLM 调 search_parts 工具”的差异，查看结构化工具调用日志。
 
 **验收门槛**：用户提问 -> Tool 被实际调用 -> 数据库返回价 -> UI 展示，USD/日期准确；无 LLM Key 仍可运行模拟测试。
+
+实际验收：[M06 Mock 记录](verification/M06.md)。只验证模拟器→真实工具→数据库→页面；不代表真实模型能力，未实现会话持久化。按修订顺序下一阶段 M07。
 
 ## M07｜持久化多会话 + 上下文状态
 **依赖**：M06。**学习**：LangGraph Thread、PostgresSaver、短期记忆、状态复原、流式 SSE、取消与错误恢复。
@@ -1684,7 +1731,7 @@ cd frontend && npm run typecheck && npm run test
 
 # 11｜实施计划修订与业务契约
 
-修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则/规格审核机制/工作台已验收（真实证据仅 CPU socket）；Agent 等后续尚未实施。
+修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则/规格审核机制/工作台已验收（真实证据仅 CPU socket）；M06 Mock 只读目录助手已验收（真实模型未接入）；M07 等后续尚未实施。
 
 本文件补充并修订原交接计划。与其他文档冲突时，以本文件对应条款为准；实施各阶段时同步更新具体接口、迁移和测试。原始数据及历史 USD 口径不变。
 
@@ -1758,7 +1805,7 @@ cd frontend && npm run typecheck && npm run test
 - 建议执行顺序：M00 → M01 → M02 → M03 → M04 → M05 → M08 → M06 → M07 → M10 → M09 → M11 → M12。
 - M08 提前时只交付规则、规格补充和手动工作台；Agent 工具接入在 M06/M07 完成后、M10 前实施。M10 不依赖 RAG；M11 依赖 M09 和 M10。
 - 编号保持不变。因执行顺序调整，V0.2 发布门槛包含 M05–M08，V0.3 包含 M09–M10；V0.1 和 V1.0 不变。
-- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则与工作台已验收；M06/M07、M09–M12 及 M08 Agent 接入尚未实施。
+- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则与工作台已验收；M06 Mock 只读目录助手已验收；真实模型接入、M07、M09–M12 及 M08 Agent 接入尚未实施。
 
 ## 9. 修订对应关系
 

@@ -115,16 +115,19 @@
 **依赖**：M05。**学习**：Chat Model、tool schema、tool call -> tool result -> LLM 解释循环、Prompt 分层、模型的非确定性。
 
 **实施任务**
-- [ ] 创建支持 OpenAI-compatible endpoint 的 Model Provider；密钥只读环境变量，可 Mock。
-- [ ] 使用现行 LangChain 工具接口实现 `search_parts/get_part/get_reference_price`。
-- [ ] 做最简单的聊天后端 + Web 侧边助手；支持“查询一款显卡的历史参考价”。
-- [ ] Tool Gateway 对 limit/查询参数校验；禁止模型直接执行 SQL；在模型错误时清楚报错。
-- [ ] Mock LLM 自动化测试验证工具参数、结果回显和模型未调用工具时的处理。
-- [ ] Prompt 明确价格口径及报价不可编造；来源信息由后端真实数据补充。
+- [x] 用户选择 Mock：Provider 协议与确定性模拟器；LangChain 消息格式/工具 schema。
+- [ ] 实际 OpenAI-compatible endpoint 适配器：本次未启用，待另行选择模型与凭据后实施。
+- [x] 使用现行 LangChain 工具接口实现 `search_parts/get_part/get_reference_price`。
+- [x] 做最简单的聊天后端 + Web 侧边助手；支持“查询一款显卡的历史参考价”。
+- [x] Tool Gateway 对 limit/查询参数校验；禁止模型直接执行 SQL；在模型错误时清楚报错。
+- [x] Mock LLM 自动化测试验证工具参数、结果回显和模型未调用工具时的处理。
+- [x] Prompt 明确价格口径及报价不可编造；来源信息由后端真实数据补充。
 
 **练习**：对比“只调 LLM”和“LLM 调 search_parts 工具”的差异，查看结构化工具调用日志。
 
 **验收门槛**：用户提问 -> Tool 被实际调用 -> 数据库返回价 -> UI 展示，USD/日期准确；无 LLM Key 仍可运行模拟测试。
+
+实际验收：[M06 Mock 记录](verification/M06.md)。只验证模拟器→真实工具→数据库→页面；不代表真实模型能力，未实现会话持久化。按修订顺序下一阶段 M07。
 
 ## M07｜持久化多会话 + 上下文状态
 **依赖**：M06。**学习**：LangGraph Thread、PostgresSaver、短期记忆、状态复原、流式 SSE、取消与错误恢复。
