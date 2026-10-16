@@ -12,17 +12,22 @@ export default function CompatibilityReport({ id, version }: { id: string; versi
   const [attempt, setAttempt] = useState(0)
   const resource = useResource<Compatibility>(`/builds/${id}/compatibility?expected_version=${version}`, attempt)
   return <section className="compatibility-report" aria-label="兼容规则报告"><div className="panel-heading"><h3>兼容规则报告</h3><Button onClick={() => setAttempt(x => x + 1)}>重新检查</Button></div>
+    <details><summary>在会话中检查此版本</summary><p>将以下问题发送给私人会话助手：</p><code>检查方案 {id} 版本 {version} 的兼容性</code></details>
     <p>仅检查下列三项条件；PASS 不代表整机兼容。未审核的原始规格不参与判定。</p>
     {resource.status === 'loading' ? <p role="status">正在检查兼容规则…</p> : resource.status === 'error' ? <Alert type="error" title="兼容报告不可用" description="方案可能有新版本或服务暂不可用。请刷新方案后重试。" /> : resource.data.build_id !== id || resource.data.build_version !== version ? <Alert type="warning" title="报告版本已过期，请刷新方案" /> : <>
-      <p><Tag color={colors[resource.data.checked_rules_status]}>已检查规则：{resource.data.checked_rules_status}</Tag>方案版本 {resource.data.build_version} · 规则 {resource.data.ruleset_version}</p>
-      <p className="result-meta">检查时间：{new Date(resource.data.checked_at).toLocaleString()}</p>
-      <ul className="compatibility-rules">{resource.data.rules.map(rule => <li key={rule.rule_id}><h4><Tag color={colors[rule.status]}>{rule.status}</Tag>{rule.title}</h4><small>{rule.rule_id}</small><p>{rule.explanation}</p>
+      <CompatibilityEvidence report={resource.data} />
+    </>}
+  </section>
+}
+
+export function CompatibilityEvidence({ report }: { report: Compatibility }) { return <section aria-label="兼容检查证据">
+      <p><Tag color={colors[report.checked_rules_status]}>已检查规则：{report.checked_rules_status}</Tag>方案版本 {report.build_version} · 规则 {report.ruleset_version}</p>
+      <p className="result-meta">检查时间：{new Date(report.checked_at).toLocaleString()}</p>
+      <ul className="compatibility-rules">{report.rules.map(rule => <li key={rule.rule_id}><h4><Tag color={colors[rule.status]}>{rule.status}</Tag>{rule.title}</h4><small>{rule.rule_id}</small><p>{rule.explanation}</p>
         {rule.compared_values.every(value => value !== null) && <p>对比值：{rule.compared_values.join(' / ')}</p>}
         {rule.missing_fields.length > 0 && <p>缺少可用证据：{rule.missing_fields.map(field => fieldNames[field] ?? field).join('、')}</p>}
         {rule.issues.some(issue => issue.includes('CONFLICT_REVIEW')) && <Alert type="warning" title="规格证据冲突，需人工审核" />}
         {rule.evidence.map(proof => <details key={proof.id}><summary>{proof.field_name} = {proof.value}{proof.unit ? ` ${proof.unit}` : ''}（审核版本 {proof.version}）</summary><p>商品 ID：{proof.part_id}</p><a href={proof.source_url} target="_blank" rel="noreferrer">查看规格来源</a><p>{proof.source_locator}</p><p>查阅时间：{new Date(proof.retrieved_at).toLocaleString()}</p></details>)}
       </li>)}</ul>
-      <h4>尚未检查</h4><ul>{resource.data.uncovered_checks.map(text => <li key={text}>{text}</li>)}</ul>
-    </>}
-  </section>
-}
+      <h4>尚未检查</h4><ul>{report.uncovered_checks.map(text => <li key={text}>{text}</li>)}</ul>
+</section> }

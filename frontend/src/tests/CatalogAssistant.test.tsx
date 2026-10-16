@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
-import CatalogAssistant, { type ChatResult } from '../CatalogAssistant'
+import CatalogAssistant, { QuoteEvidence, type ChatResult } from '../CatalogAssistant'
 const quote: ChatResult = { mode: 'mock', status: 'GROUNDED', answer: '真实工具证据', historical_notice: 'USD 历史参考价；数据集日期不是逐商品当天采价。', persistence: '不保存聊天', candidates: [], quotes: [{ part_id: 'gpu', name: 'Fixture GPU', price_usd: '20.50', currency: 'USD', source_name: 'synthetic', dataset_updated_at: '2025-07-23', source_url: 'https://example.test/data', source_file: 'fixture/gpu.csv', line_number: 3 }], tool_calls: [{ name: 'get_reference_price', arguments: { part_id: 'gpu' }, result: { price_usd: '20.50' }, status: 'ok', duration_ms: 2 }] }
 it('shows mock mode and real server quote/source only after querying', async () => {
   const fetch = vi.fn(async () => ({ ok: true, json: async () => quote }))
@@ -51,4 +51,13 @@ it('cancels without automatically retrying', async () => {
   await userEvent.click(screen.getByRole('button', { name: '查询历史目录' }))
   await userEvent.click(screen.getByRole('button', { name: '取消查询' }))
   expect(await screen.findByText('查询已取消或超时；没有自动重试。')).toBeInTheDocument()
+})
+
+it('renders persisted compatibility evidence as a versioned snapshot without claiming a price', () => {
+  render(<QuoteEvidence result={{ ...quote, status: 'COMPATIBILITY_CHECKED', answer: 'PASS 不代表整机兼容', quotes: [], compatibility_reports: [{ build_id: 'fixture-build', build_version: 3, checked_at: '2026-10-16T00:00:00Z', ruleset_version: 'm08.1', checked_rules_status: 'UNKNOWN', rules: [{ rule_id: 'CPU_SOCKET', title: '插槽检查', status: 'UNKNOWN', evidence: [], missing_fields: ['MOTHERBOARD.socket'], issues: [], explanation: '缺少证据', compared_values: ['AM5', null] }], uncovered_checks: ['BIOS 未检查'] }] }} />)
+  expect(screen.getByText('已检查规则：UNKNOWN')).toBeInTheDocument()
+  expect(screen.getByText(/保存的检查记录，仅对应版本 3/)).toBeInTheDocument()
+  expect(screen.getByText(/缺少可用证据：主板插槽/)).toBeInTheDocument()
+  expect(screen.getByText('BIOS 未检查')).toBeInTheDocument()
+  expect(screen.queryByText('USD 20.50')).not.toBeInTheDocument()
 })

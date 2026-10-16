@@ -33,3 +33,9 @@ it('ignores late reports after the build version changes', async () => {
   expect(screen.queryByText('已检查规则：PASS')).not.toBeInTheDocument()
   expect(screen.getByText(/方案版本 2/)).toBeInTheDocument()
 })
+it('provides the explicit current-version question for the private assistant', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => report })))
+  render(<CompatibilityReport id="a" version={1} />)
+  await userEvent.click(screen.getByText('在会话中检查此版本'))
+  expect(screen.getByText('检查方案 a 版本 1 的兼容性')).toBeInTheDocument()
+})

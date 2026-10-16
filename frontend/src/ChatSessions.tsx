@@ -48,7 +48,7 @@ function SessionThread({ id, attempt, refresh, remove }: { id: string; attempt: 
           if (!response.ok) throw new Error(failure(response.status))
           await readEvents(response, activeId, event => {
             if (!active) return
-            if (event.kind === 'tool.started') setProgress('正在查询目录工具…')
+            if (event.kind === 'tool.started') setProgress('正在执行检查工具…')
             else if (event.kind === 'tool.completed') setProgress('已取得工具结果，等待保存回答…')
             else if (event.kind === 'message.delta') setProgress('回答已保存，正在加载历史…')
           })
@@ -91,7 +91,7 @@ function SessionThread({ id, attempt, refresh, remove }: { id: string; attempt: 
   if (snapshot.status === 'error' || history.status === 'error') return <Alert type="error" title="会话不可用" description="可能已删除、无权访问或服务暂不可用。" />
   if (snapshot.status !== 'ready' || history.status !== 'ready') return <p role="status">正在加载私人会话…</p>
   return <section aria-label="当前私人会话"><div className="panel-heading"><h3>{snapshot.data.session.title}</h3><Button danger onClick={() => remove(snapshot.data)}>删除会话</Button></div>
-    <p className="panel-note">显示已保存历史；上下文只保留当前会话最近商品和最近六个问题。支持追问「它的历史参考价」。</p>
+    <p className="panel-note">显示已保存历史；上下文只保留当前会话最近商品和最近六个问题。支持追问「它的历史参考价」。兼容检查请从装机工作台复制带方案与版本的问题。</p>
     <div className="chat-history">{history.data.items.length === 0 ? <p>还没有消息。可先查询一款配件。</p> : history.data.items.map(message => <article className={`chat-message chat-${message.role}`} key={message.id}><h4>{message.role === 'user' ? '你' : '模拟助手'} · {labels[message.status]}</h4>{message.payload ? <QuoteEvidence result={message.payload} /> : <p>{message.content}</p>}</article>)}</div>
     <div className="pagination"><Button disabled={!history.data.has_older} onClick={() => { setCursors(items => [...items, cursor]); setCursor(history.data.before_cursor) }}>更早消息</Button><Button disabled={!cursors.length} onClick={() => { setCursor(cursors.at(-1) ?? null); setCursors(items => items.slice(0, -1)) }}>较新消息</Button></div>
     <form onSubmit={send}><label htmlFor={`question-${id}`}>会话问题</label><textarea id={`question-${id}`} value={question} onChange={event => setQuestion(event.target.value)} maxLength={1000} required rows={3} /><Button type="primary" htmlType="submit" disabled={sending || Boolean(activeId) || !question.trim()}>发送到当前会话</Button>{activeId && <Button onClick={() => { void cancel() }}>取消本次运行</Button>}</form>
@@ -133,7 +133,7 @@ export default function ChatSessions({ storageKey }: { storageKey: string }) {
     } catch (err) { if (alive.current) { setDeletion(null); setError(err instanceof Error ? err.message : '删除失败。'); setAttempt(value => value + 1) } }
     finally { window.clearTimeout(timer); if (alive.current) setBusy(false) }
   }
-  return <aside className="catalog-assistant persistent-chat" aria-label="私人会话助手"><h2>私人会话助手</h2><Alert type="info" title="Mock 模拟模式 · 会话已持久化" description="聊天保存到当前账号与租户，仅自己可见。断线不会重发；可刷新查看结果。只读目录，不修改装机方案。" />
+  return <aside className="catalog-assistant persistent-chat" aria-label="私人会话助手"><h2>私人会话助手</h2><Alert type="info" title="Mock 模拟模式 · 会话已持久化" description="聊天保存到当前账号与租户，仅自己可见。断线不会重发；可刷新查看结果。可查历史目录及本人指定版本方案的兼容规则，不修改方案。" />
     <form onSubmit={create}><label htmlFor="chat-title">新会话名称</label><input id="chat-title" value={title} onChange={event => setTitle(event.target.value)} maxLength={120} required /><Button htmlType="submit" disabled={busy || !title.trim()}>新建私人会话</Button></form>
     <Button onClick={() => setAttempt(value => value + 1)}>刷新会话</Button>
     {sessions.status === 'loading' ? <p role="status">正在加载会话列表…</p> : sessions.status === 'error' ? <Alert type="error" title="会话列表加载失败" /> : sessions.data.items.length === 0 ? <p>当前身份下尚无会话。</p> : <ul className="chat-session-list">{sessions.data.items.map(value => <li key={value.id}><Button type={selected === value.id ? 'primary' : 'default'} onClick={() => select(value.id)}>{value.title}</Button></li>)}</ul>}

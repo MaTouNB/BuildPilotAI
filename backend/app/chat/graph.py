@@ -92,7 +92,7 @@ class ContextMock(MockProvider):
         return await super().ainvoke(messages, schemas)
 
 
-def build_graph(engine, checkpointer, factory, emit, *, session_id):
+def build_graph(engine, checkpointer, factory, emit, *, session_id, authorize=None):
     def answer(state: State):
         part_id = None
         subject_run = state.get("subject_run_id")
@@ -120,7 +120,9 @@ def build_graph(engine, checkpointer, factory, emit, *, session_id):
         provider = factory()
         if type(provider) is MockProvider:
             provider = ContextMock(part_id)
-        result = asyncio.run(run(provider, toolset(engine), state["question"], emit=emit))
+        result = asyncio.run(
+            run(provider, toolset(engine, authorize=authorize), state["question"], emit=emit)
+        )
         result["persistence"] = "已保存到当前私人会话；仅保留有上限的结构化上下文"
         quotes = result["quotes"]
         return {
@@ -137,9 +139,11 @@ def build_graph(engine, checkpointer, factory, emit, *, session_id):
     return graph.compile(checkpointer=checkpointer)
 
 
-def invoke(engine, session, run_id, question, factory, emit, conn):
+def invoke(engine, session, run_id, question, factory, emit, conn, *, authorize=None):
     with tracing_context(enabled=False):
-        graph = build_graph(engine, saver(conn), factory, emit, session_id=session.id)
+        graph = build_graph(
+            engine, saver(conn), factory, emit, session_id=session.id, authorize=authorize
+        )
         return graph.invoke(
             {"question": question, "run_id": str(run_id)},
             {

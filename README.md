@@ -1,6 +1,6 @@
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M07 Mock 持久化会话）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M08 Mock 兼容工具已接入）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M07（M06/M07 为 Mock）、M08 规则与工作台已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M07（M06/M07 为 Mock）、M08 规则、工作台与 Mock Agent 只读接入已实现；验收结果见 docs/verification/。
 
 > **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，M06 Mock 只读目录助手及 M07 持久化会话已实现；尚未接真实模型。按修订后的阶段顺序逐关验收。
 
@@ -322,3 +322,13 @@ uv run --locked python -m app.chat.cleanup
 该命令只清理已删除会话，不清理活动历史；单项失败不阻塞其他项。最小删除记录在删除满七天且内容清理完成后，随下一次清理任务移除。尚无内置周期调度，需要运维执行重试任务。
 
 验收：[M07 记录](docs/verification/M07.md)；学习：[M07 笔记](docs/learning-notes/M07.md)。下一阶段建议补齐 M08 Agent 兼容性工具接入，未自动实施。
+
+## M08 补充：Agent 只读兼容检查
+
+Mock 私人会话已接入真实 `check_compatibility` 工具。在装机工作台展开「在会话中检查此版本」，复制生成的问题到会话发送。格式为 `检查方案 <方案 UUID> 版本 <正整数> 的兼容性`；不带方案/版本时提示补全，不自动猜选方案。
+
+工具执行时重新校验当前身份，只检查本人当前租户的草稿方案。版本变化提示刷新；无权、归档与不存在返回相同不可用提示。报告包含规则版本、方案版本、检查时间、三态结果、审核证据、缺失字段与未覆盖项。历史中保存的是该次检查记录，后续方案或规格变化需重新检查。
+
+运行仍用 `make db-up`、`make db-migrate`、`make dev`；验证用 `make check`、`make check-db`。无新增依赖或迁移，无需 API Key。仅增加只读规则检查，不生成/修改方案或审批提案；PASS 不代表整机兼容。真实目录仍只有 CPU/GPU，缺少主板等证据保持 UNKNOWN。
+
+详见 [M08 Agent 补充验收](docs/verification/M08_AGENT.md)与[学习笔记](docs/learning-notes/M08_AGENT.md)。下一阶段建议 M10 装机提案与人工审批，未自动执行。

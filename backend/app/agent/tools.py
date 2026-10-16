@@ -4,12 +4,16 @@ import json
 from typing import Annotated
 from uuid import UUID
 
+from fastapi import HTTPException
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from app.auth import resolve
+from app.builds import owned
 from app.catalog import Category, get_part, summaries
+from app.compatibility import report
 from app.models import HardwarePart, ImportBatch, PartPrice, PartSourceMap, RawImportRow
 
 
@@ -35,7 +39,23 @@ class PartID(Input):
     part_id: UUID
 
 
-def toolset(engine):
+class BuildID(Input):
+    build_id: UUID
+    expected_version: Annotated[int, Field(strict=True, ge=1)]
+
+
+def authorizer(request, actor):
+    """Capture trusted authentication, never model-supplied identity or resource scope."""
+
+    def authorize(db):
+        if resolve(db, request, lock=True) != actor:
+            raise HTTPException(401, "身份已变化，请重新登录")
+        return actor
+
+    return authorize
+
+
+def toolset(engine, *, authorize=None):
     def search_parts(keywords, category=None, priced_only=False, limit=5):
         """Search reviewed public catalog by literal substring; maximum five candidates."""
         with Session(engine) as db, db.begin():
@@ -120,13 +140,30 @@ def toolset(engine):
                 "row_hash": row.row_hash,
             }
 
+    def check_compatibility(build_id, expected_version):
+        """Read three checked compatibility rules for an owned build at an exact version.
+
+        PASS is limited to checked rules, never whole-system compatibility.
+        """
+        with Session(engine) as db, db.begin():
+            db.execute(text("SET LOCAL statement_timeout = '1000'"))
+            db.execute(text("SET LOCAL lock_timeout = '500'"))
+            actor = authorize(db)
+            build = owned(db, build_id, actor, lock=True)
+            if build.version != expected_version:
+                raise HTTPException(409, "方案版本变化，请刷新后重新检查")
+            return report(db, build)
+
+    definitions = [
+        ("search_parts", search_parts, Search),
+        ("get_part", part_detail, PartID),
+        ("get_reference_price", reference_price, PartID),
+    ]
+    if authorize is not None:
+        definitions.append(("check_compatibility", check_compatibility, BuildID))
     return {
         name: StructuredTool.from_function(func=function, name=name, args_schema=schema)
-        for name, function, schema in [
-            ("search_parts", search_parts, Search),
-            ("get_part", part_detail, PartID),
-            ("get_reference_price", reference_price, PartID),
-        ]
+        for name, function, schema in definitions
     }
 
 

@@ -155,14 +155,14 @@
 - [x] 小型 enrichment 表及本地审核导入已实现，CPU socket=AM5 经用户批准入库。
 - [ ] 真实主板 DDR/机箱空间规格：目录尚无相应已批准商品，保留数据覆盖缺口；合成测试不计作真实补全。
 - [x] 装机工作台显示兼容报告；仅明确已检查规则结果。
-- [ ] Agent 调用 `check_compatibility`（按修订顺序延后至 M06/M07 完成）。
+- [x] Agent 调用 `check_compatibility`：Mock 已接入本人当前租户的指定版本草稿，重新鉴权并保存证据报告。
 - [x] 测试涵盖明确兼容、明确不兼容和证据不足。
 
 **练习**：写 10 组测试用例，解释为什么“未知 != 兼容”。
 
 **验收门槛**：已有证据的冲突可指出具体原因；没有数据的输出 UNKNOWN，绝不捏造硬件支持。
 
-实际结果：[M08 验收](verification/M08.md)。三规则/审核/报告通过，真实数据补全仅 CPU socket；Agent 接入及其他类别证据保留待办。
+实际结果：[M08 验收](verification/M08.md)。三规则/审核/报告通过，真实数据补全仅 CPU socket；Agent 接入已补齐，见 [补充验收](verification/M08_AGENT.md)；其他类别真实证据仍有覆盖缺口。
 
 ## M09｜真正从零构建 RAG 知识库
 **依赖**：M07；最好已完成 M08。**学习**：Chunking、Embedding、向量检索、pgvector、混合检索、文档证据、RAG 评估。
