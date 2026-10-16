@@ -35,3 +35,6 @@ docs/verification/M06-*.jpg
 
 # M07 private conversation/browser proof is local only.
 docs/verification/M07-*.jpg
+
+# Private compatibility-chat browser verification
+docs/verification/M08-agent-*.jpg

@@ -125,3 +125,5 @@ input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px 
 .chat-message { border-top: 1px solid #d8e2ec; padding: 12px 0; overflow-wrap: anywhere; }
 .chat-user { background: #f5f7fb; padding: 12px; border-radius: 8px; }
 .persistent-chat input { box-sizing: border-box; width: 100%; padding: 10px; border: 1px solid #9caec5; border-radius: 8px; font: inherit; }
+
+.compatibility-report code { overflow-wrap: anywhere; white-space: normal; }

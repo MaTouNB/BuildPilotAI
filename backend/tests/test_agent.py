@@ -234,3 +234,31 @@ def test_external_tracing_is_disabled_even_with_host_env(monkeypatch):
     )
     execute(MockProvider(), {"search_parts": tool})
     assert not calls
+
+
+def test_compatibility_prose_alone_cannot_create_report():
+    result = execute(Script(AIMessage(content="所有硬件完全兼容，PASS")))
+    assert result["compatibility_reports"] == []
+    assert result["status"] == "NO_PRICE_EVIDENCE"
+    assert "PASS" not in result["answer"]
+
+
+def test_mock_compatibility_requires_explicit_version_and_identifier():
+    from langchain_core.messages import HumanMessage
+
+    model = MockProvider()
+    identifier = str(uuid4())
+    valid = asyncio.run(
+        model.ainvoke([HumanMessage(content=f"检查方案 {identifier} 版本 2 的兼容性")], [])
+    )
+    assert valid.tool_calls[0]["name"] == "check_compatibility"
+    assert valid.tool_calls[0]["args"] == {"build_id": identifier, "expected_version": 2}
+    for question in ("检查我的方案兼容性", f"检查方案 {identifier} 的兼容性"):
+        response = asyncio.run(model.ainvoke([HumanMessage(content=question)], []))
+        assert not response.tool_calls
+
+
+def test_vague_compatibility_question_requests_explicit_build_version():
+    result = execute(MockProvider(), question="检查我的方案兼容性")
+    assert result["status"] == "COMPATIBILITY_INPUT_REQUIRED"
+    assert "版本" in result["answer"] and not result["tool_calls"]

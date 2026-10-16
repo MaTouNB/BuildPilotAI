@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.agent.provider import MockProvider
 from app.agent.runtime import run
-from app.agent.tools import toolset
+from app.agent.tools import authorizer, toolset
 from app.auth import Auth
 from app.catalog import DB
 
@@ -80,7 +80,9 @@ async def chat(data: Chat, request: Request, db: DB, actor: Auth):
     db.rollback()
     with request.app.state.agent_limits.acquire(actor):
         provider = request.app.state.agent_provider_factory()
-        return await run(provider, toolset(engine), data.message)
+        return await run(
+            provider, toolset(engine, authorize=authorizer(request, actor)), data.message
+        )
 
 
 def configure(application):

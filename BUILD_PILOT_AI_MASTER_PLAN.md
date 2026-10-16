@@ -1,15 +1,15 @@
-# BuildPilot AI — 完整项目实施手册（M07 Mock 修订版）
+# BuildPilot AI — 完整项目实施手册（M08 Agent 补充修订版）
 
-2026-10-15：M00–M07（M06/M07 Mock）、M08 规则与工作台已验收；真实模型、M08 Agent 工具接入及后续仍待实施。
+2026-10-16：M00–M08 已实施（M06/M07/M08 Agent 为 Mock）；真实模型与 M09–M12 尚未实施，真实规格覆盖缺口仍保留。
 
 
 ---
 
 <!-- 源文件：README.md -->
 
-# BuildPilot AI — 电脑 DIY 智能装机 Agent（M07 Mock 持久化会话）
+# BuildPilot AI — 电脑 DIY 智能装机 Agent（M08 Mock 兼容工具已接入）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M07（M06/M07 为 Mock）、M08 规则与工作台已实现；验收结果见 docs/verification/。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M07（M06/M07 为 Mock）、M08 规则、工作台与 Mock Agent 只读接入已实现；验收结果见 docs/verification/。
 
 > **当前已实现 M00 工程基座、M01 文件清洗和 M02 数据库迁移/入库。** M03 配件 API/查询界面已实现，真实 CPU/GPU 样例已批准并通过验收；M04 手动装机已实现并验收，M05 登录和租户隔离已实现，M06 Mock 只读目录助手及 M07 持久化会话已实现；尚未接真实模型。按修订后的阶段顺序逐关验收。
 
@@ -332,6 +332,16 @@ uv run --locked python -m app.chat.cleanup
 
 验收：[M07 记录](docs/verification/M07.md)；学习：[M07 笔记](docs/learning-notes/M07.md)。下一阶段建议补齐 M08 Agent 兼容性工具接入，未自动实施。
 
+## M08 补充：Agent 只读兼容检查
+
+Mock 私人会话已接入真实 `check_compatibility` 工具。在装机工作台展开「在会话中检查此版本」，复制生成的问题到会话发送。格式为 `检查方案 <方案 UUID> 版本 <正整数> 的兼容性`；不带方案/版本时提示补全，不自动猜选方案。
+
+工具执行时重新校验当前身份，只检查本人当前租户的草稿方案。版本变化提示刷新；无权、归档与不存在返回相同不可用提示。报告包含规则版本、方案版本、检查时间、三态结果、审核证据、缺失字段与未覆盖项。历史中保存的是该次检查记录，后续方案或规格变化需重新检查。
+
+运行仍用 `make db-up`、`make db-migrate`、`make dev`；验证用 `make check`、`make check-db`。无新增依赖或迁移，无需 API Key。仅增加只读规则检查，不生成/修改方案或审批提案；PASS 不代表整机兼容。真实目录仍只有 CPU/GPU，缺少主板等证据保持 UNKNOWN。
+
+详见 [M08 Agent 补充验收](docs/verification/M08_AGENT.md)与[学习笔记](docs/learning-notes/M08_AGENT.md)。下一阶段建议 M10 装机提案与人工审批，未自动执行。
+
 
 ---
 
@@ -339,7 +349,7 @@ uv run --locked python -m app.chat.cleanup
 
 # Codex 工作规范（必须遵守）
 
-> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M07（M06/M07 Mock）、M08 规则与工作台已验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
+> 实施前必须同时阅读 [docs/11_PLAN_REVISION.md](docs/11_PLAN_REVISION.md)。该文件定义本次修订的业务规则、验收与执行顺序；冲突处以修订条款为准。M00–M07（M06/M07 Mock）、M08 规则、工作台及 Mock Agent 只读接入已验收，记录见 docs/verification/。后续阶段仅在用户指定后实施。
 
 ## 1. 工作模式
 - 每次只实施用户指定的 `Mxx` 阶段。不得主动跨越未完成里程碑，也不得一次“生成整个项目”。
@@ -1084,6 +1094,14 @@ M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接�
 
 原 M06 无状态 `/api/v1/ai/chat` 保留兼容；页面改用 M07 会话界面。删除保留及维护策略见 README。
 
+## M08 Agent 补充（已实现，Mock）
+
+现有 `/ai/chat` 与 M07 会话消息 API 均支持 `检查方案 <UUID> 版本 <正整数> 的兼容性`。新工具 `check_compatibility` 参数仅为 `build_id`、严格正整数 `expected_version`，不允许 owner、tenant、SQL 或 thread 字段；工具仅在服务端提供认证闭包时注册。执行事务重新鉴权、按本人当前租户过滤并锁定草稿方案，核对版本后调用既有规则引擎；不新增公共工具直调 API。
+
+回答新增 `compatibility_reports` 数组，沿用工作台报告结构。`status` 可为 COMPATIBILITY_CHECKED、COMPATIBILITY_UNAVAILABLE 或 COMPATIBILITY_INPUT_REQUIRED；它是取报告的流程状态，不替代报告中的 checked_rules_status。版本冲突工具结果为 BUILD_VERSION_CHANGED，无权/归档/不存在统一 BUILD_UNAVAILABLE；不会返回报告。鉴权失效拒绝执行（无状态入口 401，会话运行失败）。
+
+历史报告绑定 build_version/ruleset_version/checked_at，不随方案或规格更新，不能当作当前报告；检查不更改 Build、条目、报价快照或规格审核记录。现有工具次数、输出、超时和 SSE/幂等限制保持适用。
+
 
 ---
 
@@ -1232,6 +1250,14 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 上下文引用还须匹配当前 session 的已完成运行及其报价商品；污染 checkpoint 中的跨会话运行引用不能借用私人状态。上下文最多最近六条问题与上一有效商品，历史分页不等于无限模型记忆。
 
 取消/删除通过数据库状态及同一会话锁隔离迟到提交；删除内容失败可重试且不阻塞其他删除项。数据库并发控制跨进程，频率限制仍沿用 M06 进程内实现，不能称作生产分布式配额。日志仅固定错误类别，不记录私有问句/异常原文。完整测试与限制见 [M07](verification/M07.md)。
+
+## M08 Agent 工具补充
+
+`check_compatibility` 的能力由服务端注入认证闭包授予，而非模型参数。每次工具调用在独立短事务重新解析 Cookie 身份并比较捕获的服务端 Actor，再以 owner + tenant + draft 查询方案、锁定核对 expected_version。没有闭包的 toolset 仍只有公共目录工具。
+
+模型文字不能产生报告；回答中的 compatibility_reports 仅收集真实规则工具结果。私有报告沿 M07 私有运行、事件、历史、checkpoint 边界保存与删除，不成为跨会话上下文或价格引用。过去合法读取的报告是本人会话内的历史检查记录，后续更改需重新检查；私有会话的保留/删除策略继续适用。
+
+没有新增 get_build、任意数据库访问、写入、推荐或审批工具。真实规格覆盖缺口不由模型补齐。安全与持久化实测见 [补充验收](verification/M08_AGENT.md)。
 
 
 ---
@@ -1395,14 +1421,14 @@ LangGraph `interrupt` 在恢复时会**从被中断节点开头重新执行**；
 - [x] 小型 enrichment 表及本地审核导入已实现，CPU socket=AM5 经用户批准入库。
 - [ ] 真实主板 DDR/机箱空间规格：目录尚无相应已批准商品，保留数据覆盖缺口；合成测试不计作真实补全。
 - [x] 装机工作台显示兼容报告；仅明确已检查规则结果。
-- [ ] Agent 调用 `check_compatibility`（按修订顺序延后至 M06/M07 完成）。
+- [x] Agent 调用 `check_compatibility`：Mock 已接入本人当前租户的指定版本草稿，重新鉴权并保存证据报告。
 - [x] 测试涵盖明确兼容、明确不兼容和证据不足。
 
 **练习**：写 10 组测试用例，解释为什么“未知 != 兼容”。
 
 **验收门槛**：已有证据的冲突可指出具体原因；没有数据的输出 UNKNOWN，绝不捏造硬件支持。
 
-实际结果：[M08 验收](verification/M08.md)。三规则/审核/报告通过，真实数据补全仅 CPU socket；Agent 接入及其他类别证据保留待办。
+实际结果：[M08 验收](verification/M08.md)。三规则/审核/报告通过，真实数据补全仅 CPU socket；Agent 接入已补齐，见 [补充验收](verification/M08_AGENT.md)；其他类别真实证据仍有覆盖缺口。
 
 ## M09｜真正从零构建 RAG 知识库
 **依赖**：M07；最好已完成 M08。**学习**：Chunking、Embedding、向量检索、pgvector、混合检索、文档证据、RAG 评估。
@@ -1793,7 +1819,7 @@ cd frontend && npm run typecheck && npm run test
 
 # 11｜实施计划修订与业务契约
 
-修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则/规格审核机制/工作台已验收（真实证据仅 CPU socket）；M06 Mock 只读目录助手已验收（真实模型未接入）；M07 Mock 持久化会话已验收；M09–M12 尚未实施。
+修订日期：2026-10-13。状态：设计已修订；M00–M02 已实现；M03 目录 API/UI 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则/规格审核机制/工作台与 Mock Agent 只读接入已验收（真实证据仅 CPU socket）；M06 Mock 只读目录助手已验收（真实模型未接入）；M07 Mock 持久化会话已验收；M09–M12 尚未实施。
 
 本文件补充并修订原交接计划。与其他文档冲突时，以本文件对应条款为准；实施各阶段时同步更新具体接口、迁移和测试。原始数据及历史 USD 口径不变。
 
@@ -1867,7 +1893,7 @@ cd frontend && npm run typecheck && npm run test
 - 建议执行顺序：M00 → M01 → M02 → M03 → M04 → M05 → M08 → M06 → M07 → M10 → M09 → M11 → M12。
 - M08 提前时只交付规则、规格补充和手动工作台；Agent 工具接入在 M06/M07 完成后、M10 前实施。M10 不依赖 RAG；M11 依赖 M09 和 M10。
 - 编号保持不变。因执行顺序调整，V0.2 发布门槛包含 M05–M08，V0.3 包含 M09–M10；V0.1 和 V1.0 不变。
-- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则与工作台已验收；M06 Mock 只读目录助手已验收；M07 Mock 持久化会话已验收；真实模型接入、M09–M12 及 M08 Agent 接入尚未实施。
+- 每次只实施用户指定阶段。M00–M02 已实现，当前进度见 verification/ 下的里程碑记录；M03 已通过真实样例验收；M04 手动装机已验收；M05 登录与租户隔离已验收；M08 规则与工作台已验收；M06 Mock 只读目录助手已验收；M07 Mock 持久化会话已验收；M08 Mock Agent 兼容工具已补齐；真实模型接入与 M09–M12 尚未实施。
 
 ## 9. 修订对应关系
 

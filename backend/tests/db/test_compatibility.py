@@ -130,12 +130,23 @@ def test_report_pass_fail_conflict_supersession_and_pending(catalog, database):
         path = f"/api/v1/builds/{build['id']}/compatibility?expected_version=1"
         result = client.get(path).json()
         assert result["checked_rules_status"] == "PASS"
+        from tests.db.test_agent import ask
+        from tests.db.test_agent_compatibility import question
+
+        assert (
+            ask(client, question(build)).json()["compatibility_reports"][0]["checked_rules_status"]
+            == "PASS"
+        )
         assert len(result["rules"][2]["evidence"]) == 2
         shorter = proof(str(parts["CASE"]), "max_gpu_length_mm", "234")
         shorter.update(version=2, supersedes_id=rows[-1]["id"])
         with Session(database) as db, db.begin():
             apply(db, [Review.model_validate(shorter)])
         assert client.get(path).json()["checked_rules_status"] == "FAIL"
+        assert (
+            ask(client, question(build)).json()["compatibility_reports"][0]["checked_rules_status"]
+            == "FAIL"
+        )
         conflict = proof(str(parts["CASE"]), "max_gpu_length_mm", "236")
         conflict.update(version=3)
         with Session(database) as db, db.begin():

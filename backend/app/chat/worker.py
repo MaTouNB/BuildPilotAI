@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agent.tools import authorizer
 from app.auth import resolve
 from app.chat.graph import acquire_worker_lock, checkpoint_connection, invoke, release_worker_lock
 from app.chat.store import complete, event, fail, get_run, limits, owned
@@ -64,6 +65,7 @@ def process(application, request, actor, session_id, run_id):
                         application.state.agent_provider_factory,
                         emit,
                         conn,
+                        authorize=authorizer(request, actor),
                     )
                 with Session(engine) as db, db.begin():
                     limits(db)

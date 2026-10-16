@@ -247,3 +247,11 @@ M04没有提供上方规划表中的 POST /builds/{id}/check；兼容规则接�
 事件类型为 run.started、tool.started、tool.completed、message.delta、run.completed/run.failed。分片来自完成后保存的答案；断线 GET 状态/历史，不自动重复发送。运行截止 60 秒，崩溃运行在无工作锁时明确失败。每用户每租户最多 30 活动会话、每会话 100 运行；数据库准入全局 4 / 租户 2 / 用户 1 活动运行。单会话一个活动运行。所有 AI 写入请求体最多 8 KiB。
 
 原 M06 无状态 `/api/v1/ai/chat` 保留兼容；页面改用 M07 会话界面。删除保留及维护策略见 README。
+
+## M08 Agent 补充（已实现，Mock）
+
+现有 `/ai/chat` 与 M07 会话消息 API 均支持 `检查方案 <UUID> 版本 <正整数> 的兼容性`。新工具 `check_compatibility` 参数仅为 `build_id`、严格正整数 `expected_version`，不允许 owner、tenant、SQL 或 thread 字段；工具仅在服务端提供认证闭包时注册。执行事务重新鉴权、按本人当前租户过滤并锁定草稿方案，核对版本后调用既有规则引擎；不新增公共工具直调 API。
+
+回答新增 `compatibility_reports` 数组，沿用工作台报告结构。`status` 可为 COMPATIBILITY_CHECKED、COMPATIBILITY_UNAVAILABLE 或 COMPATIBILITY_INPUT_REQUIRED；它是取报告的流程状态，不替代报告中的 checked_rules_status。版本冲突工具结果为 BUILD_VERSION_CHANGED，无权/归档/不存在统一 BUILD_UNAVAILABLE；不会返回报告。鉴权失效拒绝执行（无状态入口 401，会话运行失败）。
+
+历史报告绑定 build_version/ruleset_version/checked_at，不随方案或规格更新，不能当作当前报告；检查不更改 Build、条目、报价快照或规格审核记录。现有工具次数、输出、超时和 SSE/幂等限制保持适用。

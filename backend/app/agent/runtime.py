@@ -44,7 +44,7 @@ async def invoke_tool(tool, parsed):
 
 async def run(provider, tools, message, *, emit=None):
     messages = [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=message)]
-    trace, quotes, candidates = [], [], []
+    trace, quotes, candidates, compatibility_reports = [], [], [], []
     used, ids = 0, set()
     schemas = [convert_to_openai_tool(tool) for tool in tools.values()]
     try:
@@ -64,7 +64,13 @@ async def run(provider, tools, message, *, emit=None):
                         raise HTTPException(502, "模拟模型返回格式无效")
                     calls = reply.tool_calls
                     if not calls:
-                        return finish(trace, quotes, candidates)
+                        return finish(
+                            trace,
+                            quotes,
+                            candidates,
+                            compatibility_reports,
+                            compatibility_requested="兼容" in message,
+                        )
                     if used + len(calls) > MAX_TOOLS:
                         raise HTTPException(422, "工具调用次数超过上限")
                     messages.append(reply)
@@ -91,9 +97,25 @@ async def run(provider, tools, message, *, emit=None):
                             result = await invoke_tool(tool, parsed)
                             encoded = bounded_json(result)
                         except HTTPException as exc:
-                            if exc.status_code != 404:
+                            if call["name"] == "check_compatibility" and exc.status_code in (
+                                404,
+                                409,
+                            ):
+                                result = {
+                                    "error": "BUILD_UNAVAILABLE"
+                                    if exc.status_code == 404
+                                    else "BUILD_VERSION_CHANGED",
+                                    "message": "方案不可用或无权访问"
+                                    if exc.status_code == 404
+                                    else "方案版本已变化，请刷新方案后重新检查",
+                                }
+                            elif exc.status_code == 404:
+                                result = {
+                                    "error": "PART_NOT_FOUND",
+                                    "message": "商品不存在或尚未审核",
+                                }
+                            else:
                                 raise
-                            result = {"error": "PART_NOT_FOUND", "message": "商品不存在或尚未审核"}
                             encoded = bounded_json(result)
                         trace.append(
                             {
@@ -108,6 +130,8 @@ async def run(provider, tools, message, *, emit=None):
                             emit("tool.completed", trace[-1])
                         if call["name"] == "get_reference_price" and not result.get("error"):
                             quotes.append(result)
+                        if call["name"] == "check_compatibility" and not result.get("error"):
+                            compatibility_reports.append(result)
                         if call["name"] == "search_parts":
                             candidates = result.get("items", [])
                         messages.append(
@@ -123,8 +147,23 @@ async def run(provider, tools, message, *, emit=None):
         raise HTTPException(502, "模拟模型或工具执行失败；未生成报价") from exc
 
 
-def finish(trace, quotes, candidates):
-    if any(quote.get("price_usd") is not None for quote in quotes):
+def finish(trace, quotes, candidates, compatibility_reports, *, compatibility_requested=False):
+    checks = [entry for entry in trace if entry["name"] == "check_compatibility"]
+    if compatibility_reports:
+        status = "COMPATIBILITY_CHECKED"
+        answer = (
+            "已读取指定方案版本的规则报告。PASS 仅代表已检查条件满足，不代表整机兼容；"
+            "请查看证据、缺失字段和未覆盖项。"
+        )
+    elif checks:
+        status = "COMPATIBILITY_UNAVAILABLE"
+        answer = (
+            "未取得兼容报告。方案不可用、无权访问或版本已变化；请刷新本人方案并核对版本后重新检查。"
+        )
+    elif compatibility_requested and not trace:
+        status = "COMPATIBILITY_INPUT_REQUIRED"
+        answer = "请从装机工作台展开「在会话中检查此版本」，复制包含方案标识和版本的问题后发送。"
+    elif any(quote.get("price_usd") is not None for quote in quotes):
         status = "GROUNDED"
         answer = "已从目录读取历史报价，请以来源卡片为准；不是实时市场价格。"
     elif quotes:
@@ -142,6 +181,7 @@ def finish(trace, quotes, candidates):
         answer=answer,
         quotes=quotes,
         candidates=candidates,
+        compatibility_reports=compatibility_reports,
         tool_calls=trace,
         historical_notice="USD 历史参考价；数据集日期不是逐商品当天采价。",
         persistence="本阶段不保存聊天；每次查询独立",
